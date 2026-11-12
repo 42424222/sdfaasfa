@@ -171,8 +171,8 @@ VIEWS = {
     "face_close": ((0.0, -6.0, -0.17), (0.0, 0.0, -0.17), 0.80),
     "face_mid": ((0.0, -6.0, -0.17), (0.0, 0.0, -0.17), 0.80),
     # the character's right eye (head +X = Blender -X), straight on and from a three-quarter angle
-    "eye_front": ((-0.257, -6.0, -0.085), (-0.257, 0.0, -0.085), 0.56),
-    "eye_34": ((-1.10, -1.20, 0.30), (-0.30, -0.53, -0.09), None),
+    "eye_front": ((-0.315, -6.0, -0.180), (-0.315, 0.0, -0.180), 0.56),
+    "eye_34": ((-1.15, -1.15, 0.22), (-0.34, -0.50, -0.19), None),
 }
 
 # Short demo clip at 12 fps: (expression, mouth override or None, frames). Talking flips 2D mouths.
