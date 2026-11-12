@@ -4,17 +4,17 @@ An original anime-style male face built to fit the Roblox R6 head exactly. It fo
 structure of the supplied example face:
 
 - The skin around the eyes stays flush with the head, and the eye white and iris sit on the skin.
-- The black lash line is a glossy raised 3D ridge with a tapering outer wing and curved lash spikes.
+- Big almond eyes (0.36 studs wide, inner corners 0.17 apart) with a deep, pointed inner corner and a sharp outer corner. The black lash line is a glossy raised 3D band that tails off past the outer corner.
 - Separate thin raised lines sit apart from the eye: a dark crease, a pale highlight line above it,
   and lower lashes.
-- Thick black brows, a warm brown gradient iris with white highlights, and swappable 2D mouth drawings.
+- A small round brown iris with white all around it, a two-tone eye white, thick black brows, and swappable 2D mouth drawings that sit low on the face.
 
 Everything is driven by 38 bones, so it can be keyframed in the Animation Editor or by the included
 controller (blinking, eye movement, 24 expressions, lip-flap talking, blush).
 
 ![Neutral face, front and three-quarter](docs/images/hero.png)
 
-![Eye close-up, straight on and from the side: raised lash ridge, spikes, crease, highlight line](docs/images/eye_detail.png)
+![Eye close-up, straight on and from the side: raised lash band, crease, pale line, lower lashes](docs/images/eye_detail.png)
 
 ![Expressions](docs/images/expressions.png)
 
@@ -54,7 +54,7 @@ syllables:
 | `tools/` | The generator: geometry, texture painter, Blender build/export, previews, checks |
 | `tests/controller.test.luau` | Offline controller tests (Lune) |
 
-Specs: 16,564 triangles (Roblox limit 20,000), 38 bones, at most 4 influences per vertex, no
+Specs: 17,532 triangles (Roblox limit 20,000), 38 bones, at most 4 influences per vertex, no
 weights on the root bone, one material. The head shell was measured from the supplied R6
 mannequin (a rounded cylinder: radius 0.6012, height 1.2024, edge radius 0.3006 studs) and wraps it
 0.0008 studs larger. The raised lines stand 0.003 to 0.015 studs proud of the skin.
@@ -121,7 +121,7 @@ controller doesn't overwrite it.
 
 **Looking around:** `Iris_L` and `Iris_R` pivot at the centre of the head, like eyeballs. Rotate
 them around their up axis to look left or right, so the iris slides along the curved head and
-under the lids without lifting off. Move them straight up or down to look up or down. About 4°
+under the lids without lifting off. Move them straight up or down to look up or down. About 8°
 is a full side glance.
 
 **Swapping mouth images:** `Mouth_Neutral` is out at rest. To show another image, move its bone
@@ -144,7 +144,7 @@ should be out at a time.
 | `Blush_L/R` | Hidden inside the head at rest; slide 0.03 studs outward to show |
 
 The lids use smooth weights, so a lid bone moves further than the lid line itself (closing the eye
-takes about 0.13 studs on `LidUpper`). The `Blink` pose in the Blender file is a good reference.
+takes about 0.20 studs on `LidUpper`). The `Blink` pose in the Blender file is a good reference.
 
 ## Changing the design
 

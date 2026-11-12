@@ -33,7 +33,7 @@ PAL = {
     # eyes: warm brown iris
     "iris_top": "#2c1507", "iris_upper": "#55290e", "iris_mid": "#8a4718", "iris_low": "#c27b2e",
     "iris_bottom": "#e7b05a", "iris_ring": "#1b0d05", "pupil": "#120703", "iris_glow": "#f5cf86",
-    "sclera": "#ffffff", "sclera_shade": "#c6cbdc", "sclera_corner": "#e2e5ef",
+    "sclera": "#ffffff", "sclera_shade": "#d4d6e6", "sclera_deep": "#b4b8cf", "sclera_corner": "#c7c0cc",
     # raised lines
     "lash": "#111012", "brow": "#151214", "crease": "#1b1517", "lidline": "#fff8f4", "lowerlash": "#2a2124",
     "highlight": "#ffffff",
@@ -206,7 +206,7 @@ def paint_iris():
     for k in (9, 17, 29, 43, 61, 83):
         f += rng.uniform(0.5, 1.0) * np.sin(k * ang + rng.uniform(0, 2 * np.pi) + 0.8 * np.sin(3 * ang + k))
     fib = np.tanh(f * 0.9) * S((r - 0.36) / 0.10) * (1 - S((r - 0.86) / 0.08))
-    c = c * (1 + 0.10 * fib)[..., None]
+    c = c * (1 + 0.05 * fib)[..., None]
     # soft glow crescent in the lower half, and a lighter collarette around the pupil
     cres = S((0.90 - np.hypot(X * 1.04, Y + 0.30)) / 0.16) * S((np.hypot(X * 1.12, Y + 0.08) - 0.52) / 0.14) * S((-Y - 0.05) / 0.35)
     c = lerp(c, col("iris_glow"), 0.55 * cres)
@@ -237,8 +237,15 @@ def paint_sclera():
     height = np.maximum(y_up - y_lo, 1e-3)
     t = (y_up - s.Y) / height                         # 0 at the upper lid, 1 at the lower lid
     c = np.broadcast_to(col("sclera"), s.X.shape + (3,)).copy()
-    c = lerp(c, col("sclera_shade"), 0.9 * (1 - S(t / 0.42)))        # soft shadow under the lid
-    c = lerp(c, col("sclera_corner"), 0.5 * S((np.abs(s.X - 0.008) - 0.075) / 0.07))
+    # two-tone white: a clean lavender-grey band under the upper lid, darker right at the lash
+    c = lerp(c, col("sclera_shade"), 1 - S((t - 0.30) / 0.06))
+    c = lerp(c, col("sclera_deep"), 0.7 * (1 - S(t / 0.10)))
+    # the deep inner corner and the outer corner fall into soft shadow
+    ix, iy = fd.EYE_INNER
+    d_in = np.hypot((s.X - ix) / 1.3, s.Y - iy)
+    c = lerp(c, col("sclera_corner"), 0.85 * (1 - S((d_in - 0.010) / 0.035)))
+    ox, oy = fd.EYE_OUTER
+    c = lerp(c, col("sclera_shade"), 0.6 * (1 - S((np.hypot(s.X - ox, s.Y - oy) - 0.010) / 0.040)))
     s.C, s.A = c, np.ones_like(s.X)
     s.commit(0.35)
 
@@ -290,24 +297,24 @@ def teeth_fill(s, poly, clip=None):
 
 
 def m_neutral(s):
-    s.stroke(bez([(-0.25, 0.004), (-0.09, -0.008), (0.09, -0.008), (0.25, 0.004)]),
-             taper(80, [(0, 0.055), (0.5, 0.072), (1, 0.055)]), "line")
+    s.stroke(bez([(-0.34, 0.006), (-0.12, -0.010), (0.12, -0.010), (0.34, 0.006)]),
+             taper(80, [(0, 0.045), (0.5, 0.066), (1, 0.045)]), "line")
 
 
 def m_smile(s):
-    s.stroke(bez([(-0.38, 0.07), (-0.16, -0.045), (0.16, -0.045), (0.38, 0.07)]),
-             taper(80, [(0, 0.045), (0.5, 0.078), (1, 0.045)]), "line")
+    s.stroke(bez([(-0.62, 0.10), (-0.26, -0.065), (0.26, -0.065), (0.62, 0.10)]),
+             taper(80, [(0, 0.030), (0.5, 0.080), (1, 0.030)]), "line")
 
 
 def m_frown(s):
-    s.stroke(bez([(-0.33, -0.075), (-0.15, 0.065), (0.15, 0.065), (0.33, -0.075)]),
-             taper(80, [(0, 0.092), (0.5, 0.085), (1, 0.092)]), "line")
+    s.stroke(bez([(-0.40, -0.075), (-0.18, 0.070), (0.18, 0.070), (0.40, -0.075)]),
+             taper(80, [(0, 0.045), (0.5, 0.075), (1, 0.045)]), "line")
 
 
 def m_smirk(s):
-    s.stroke(bez([(-0.32, 0.0), (-0.08, -0.04), (0.18, -0.035), (0.38, 0.085)], 90),
-             taper(90, [(0, 0.045), (0.5, 0.075), (1, 0.080)]), "line")
-    s.stroke(bez([(0.36, 0.17), (0.42, 0.15), (0.45, 0.11), (0.45, 0.06)], 20), taper(20, [(0, 0.012), (0.5, 0.030), (1, 0.012)]), "line")
+    s.stroke(bez([(-0.50, 0.010), (-0.14, -0.050), (0.28, -0.045), (0.60, 0.115)], 90),
+             taper(90, [(0, 0.030), (0.5, 0.070), (1, 0.074)]), "line")
+    s.stroke(bez([(0.57, 0.20), (0.64, 0.18), (0.67, 0.13), (0.66, 0.08)], 20), taper(20, [(0, 0.012), (0.5, 0.030), (1, 0.012)]), "line")
 
 
 def m_open_small(s):
@@ -331,14 +338,14 @@ def m_open(s):
 
 
 def m_laugh(s):
-    top = bez([(-0.62, 0.20), (-0.28, 0.13), (0.28, 0.13), (0.62, 0.20)], 70)
-    poly = shape(top, bez([(0.62, 0.20), (0.52, -0.60), (-0.52, -0.60), (-0.62, 0.20)], 70))
-    inside = inner_fill(s, poly, -0.60, 0.20)
-    teeth_fill(s, np.concatenate([top, (top - np.array([0.0, 0.10]))[::-1]]), inside)
-    s.stroke(top - np.array([0.0, 0.10]), 0.018, "teeth_shade", clip=inside)
-    tongue(s, (0.0, -0.40), (0.33, 0.14), inside)
-    s.stroke(np.concatenate([poly, poly[:1]]), LINE_W * 1.05, "line")
-    s.stroke(top, taper(70, [(0, 0.085), (0.5, 0.10), (1, 0.085)]), "line")
+    top = bez([(-0.58, 0.20), (-0.26, 0.13), (0.26, 0.13), (0.58, 0.20)], 70)
+    poly = shape(top, bez([(0.58, 0.20), (0.48, -0.47), (-0.48, -0.47), (-0.58, 0.20)], 70))
+    inside = inner_fill(s, poly, -0.47, 0.20)
+    teeth_fill(s, np.concatenate([top, (top - np.array([0.0, 0.09]))[::-1]]), inside)
+    s.stroke(top - np.array([0.0, 0.09]), 0.018, "teeth_shade", clip=inside)
+    tongue(s, (0.0, -0.30), (0.30, 0.12), inside)
+    s.stroke(np.concatenate([poly, poly[:1]]), LINE_W, "line")
+    s.stroke(top, taper(70, [(0, 0.080), (0.5, 0.095), (1, 0.080)]), "line")
 
 
 def m_grin(s):
@@ -378,16 +385,16 @@ def m_pout(s):
 
 
 def m_cat(s):
-    left = bez([(-0.30, 0.07), (-0.26, -0.07), (-0.05, -0.08), (0.0, 0.03)], 40)
-    right = bez([(0.0, 0.03), (0.05, -0.08), (0.26, -0.07), (0.30, 0.07)], 40)
+    left = bez([(-0.40, 0.08), (-0.34, -0.08), (-0.06, -0.09), (0.0, 0.03)], 40)
+    right = bez([(0.0, 0.03), (0.06, -0.09), (0.34, -0.08), (0.40, 0.08)], 40)
     p = np.concatenate([left, right[1:]])
-    s.stroke(p, taper(len(p), [(0, 0.040), (0.25, 0.065), (0.5, 0.050), (0.75, 0.065), (1, 0.040)]), "line")
+    s.stroke(p, taper(len(p), [(0, 0.035), (0.25, 0.065), (0.5, 0.050), (0.75, 0.065), (1, 0.035)]), "line")
 
 
 def m_wavy(s):
-    x = np.linspace(-0.36, 0.36, 140)
-    s.stroke(np.stack([x, 0.030 * np.sin((x + 0.36) / 0.72 * 2.5 * 2 * np.pi)], -1),
-             taper(140, [(0, 0.045), (0.5, 0.060), (1, 0.045)]), "line")
+    x = np.linspace(-0.42, 0.42, 140)
+    s.stroke(np.stack([x, 0.032 * np.sin((x + 0.42) / 0.84 * 2.5 * 2 * np.pi)], -1),
+             taper(140, [(0, 0.040), (0.5, 0.058), (1, 0.040)]), "line")
 
 
 MOUTH_PAINTERS = {

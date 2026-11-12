@@ -165,14 +165,14 @@ def aim(cam, loc, target, ortho=None, lens=85):
 
 
 VIEWS = {
-    "front": ((0.0, -6.0, -0.06), (0.0, 0.0, -0.06), 0.95),
-    "three_quarter": ((-2.35, -4.1, 0.55), (0.0, 0.0, -0.08), None),
+    "front": ((0.0, -6.0, -0.15), (0.0, 0.0, -0.15), 0.95),
+    "three_quarter": ((-2.35, -4.1, 0.55), (0.0, 0.0, -0.10), None),
     "side": ((-6.0, -0.9, -0.05), (0.0, 0.0, -0.05), 1.05),
-    "face_close": ((0.0, -6.0, -0.10), (0.0, 0.0, -0.10), 0.62),
-    "face_mid": ((0.0, -6.0, -0.13), (0.0, 0.0, -0.13), 0.74),
+    "face_close": ((0.0, -6.0, -0.17), (0.0, 0.0, -0.17), 0.80),
+    "face_mid": ((0.0, -6.0, -0.17), (0.0, 0.0, -0.17), 0.80),
     # the character's right eye (head +X = Blender -X), straight on and from a three-quarter angle
-    "eye_front": ((-0.235, -6.0, -0.075), (-0.235, 0.0, -0.075), 0.40),
-    "eye_34": ((-1.05, -1.25, 0.30), (-0.26, -0.55, -0.085), None),
+    "eye_front": ((-0.257, -6.0, -0.085), (-0.257, 0.0, -0.085), 0.56),
+    "eye_34": ((-1.10, -1.20, 0.30), (-0.30, -0.53, -0.09), None),
 }
 
 # Short demo clip at 12 fps: (expression, mouth override or None, frames). Talking flips 2D mouths.

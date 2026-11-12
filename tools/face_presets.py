@@ -68,7 +68,7 @@ def _closed_target():
     return f
 
 
-def _happy_target(height=0.034):
+def _happy_target(height=0.046):
     (ix, iy), (ox, oy) = fd.EYE_INNER, fd.EYE_OUTER
 
     def f(ex):
@@ -118,8 +118,8 @@ def mouth(name):
 EYES_CLOSED = sym(**_lids(CLOSED_UP, CLOSED_LOW))
 EYES_HAPPY = sym(**_lids(HAPPY_UP, HAPPY_LOW))
 EYES_HALF = sym(**_lids(CLOSED_UP, CLOSED_LOW * 0.2, 0.45))
-EYES_SOFT = sym(LidUpperInner=(0, -0.005, 0), LidUpper=(0, -0.008, 0), LidUpperOuter=(0, -0.005, 0), LidLower=(0, 0.018, 0))
-EYES_WIDE = sym(LidUpperInner=(0, 0.020, 0), LidUpper=(0, 0.030, 0), LidUpperOuter=(0, 0.022, 0), LidLower=(0, -0.010, 0))
+EYES_SOFT = sym(LidUpperInner=(0, -0.007, 0), LidUpper=(0, -0.011, 0), LidUpperOuter=(0, -0.007, 0), LidLower=(0, 0.026, 0))
+EYES_WIDE = sym(LidUpperInner=(0, 0.026, 0), LidUpper=(0, 0.040, 0), LidUpperOuter=(0, 0.030, 0), LidLower=(0, -0.014, 0))
 
 PRESETS = {
     "Neutral": {},
@@ -127,38 +127,38 @@ PRESETS = {
     "Smile": merge(EYES_SOFT, sym(Brow=(0, 0.004, 0)), mouth("Smile")),
     "Happy": merge(EYES_HAPPY, sym(Brow=(0, 0.012, 0), BrowInner=(0, 0.005, 0)), mouth("Open")),
     "Laugh": merge(EYES_HAPPY, sym(Brow=(0, 0.016, 0), BrowInner=(0, 0.007, 0)), mouth("Laugh")),
-    "Grin": merge(sym(LidLower=(0, 0.016, 0), LidUpper=(0, -0.004, 0), Brow=(0, 0.006, 0)), mouth("Grin")),
-    "Angry": merge(sym(LidUpperInner=(0, -0.050, 0), LidUpper=(0, -0.028, 0), LidUpperOuter=(0, -0.004, 0), LidLower=(0, 0.012, 0),
+    "Grin": merge(sym(LidLower=(0, 0.024, 0), LidUpper=(0, -0.006, 0), Brow=(0, 0.006, 0)), mouth("Grin")),
+    "Angry": merge(sym(LidUpperInner=(0, -0.072, 0), LidUpper=(0, -0.040, 0), LidUpperOuter=(0, -0.006, 0), LidLower=(0, 0.017, 0),
                        Brow=(0, -0.016, 0), BrowInner=(-0.006, -0.028, 0), BrowOuter=(0, 0.009, 0)), mouth("Teeth")),
-    "Sad": merge(sym(LidUpperInner=(0, 0.006, 0), LidUpper=(0, -0.012, 0), LidUpperOuter=(0, -0.040, 0), LidLower=(0, 0.004, 0),
-                     Brow=(0, 0.006, 0), BrowInner=(-0.004, 0.030, 0), BrowOuter=(0, -0.012, 0), Iris=(0, -0.006, 0)),
+    "Sad": merge(sym(LidUpperInner=(0, 0.008, 0), LidUpper=(0, -0.017, 0), LidUpperOuter=(0, -0.058, 0), LidLower=(0, 0.006, 0),
+                     Brow=(0, 0.006, 0), BrowInner=(-0.004, 0.030, 0), BrowOuter=(0, -0.012, 0), Iris=(0, -0.010, 0)),
                  mouth("Frown")),
     "Surprised": merge(EYES_WIDE, sym(Brow=(0, 0.032, 0), BrowInner=(0, 0.006, 0)), mouth("OpenSmall")),
     "Shocked": merge(EYES_WIDE, sym(Brow=(0, 0.044, 0), BrowInner=(0, 0.010, 0)), mouth("O")),
-    "Sleepy": merge(EYES_HALF, sym(Brow=(0, -0.004, 0), BrowOuter=(0, -0.006, 0), Iris=(0, -0.010, 0)), mouth("Neutral")),
+    "Sleepy": merge(EYES_HALF, sym(Brow=(0, -0.004, 0), BrowOuter=(0, -0.006, 0), Iris=(0, -0.016, 0)), mouth("Neutral")),
     # the smirk image rises on the viewer's right = the character's left, so the mouth shifts left (-X)
     "Smug": merge(sym(**_lids(CLOSED_UP, CLOSED_LOW * 0.1, 0.32)),
                   bones(Brow_L=(0, 0.015, 0), BrowInner_L=(0, 0.004, 0), Brow_R=(0, -0.006, 0), BrowInner_R=(0, -0.006, 0),
-                        Mouth=(-0.010, 0.003, 0), Iris_L=(0.022, 0, 0), Iris_R=(-0.022, 0, 0)),
+                        Mouth=(-0.016, 0.004, 0), Iris_L=(0.040, 0, 0), Iris_R=(-0.040, 0, 0)),
                   mouth("Smirk")),
-    "Determined": merge(sym(LidUpperInner=(0, -0.024, 0), LidUpper=(0, -0.012, 0), LidLower=(0, 0.014, 0),
+    "Determined": merge(sym(LidUpperInner=(0, -0.034, 0), LidUpper=(0, -0.017, 0), LidLower=(0, 0.020, 0),
                             Brow=(0, -0.010, 0), BrowInner=(-0.004, -0.015, 0), BrowOuter=(0, 0.004, 0)),
                         mouth("Neutral")),
-    "Serious": merge(sym(LidUpper=(0, -0.008, 0), LidLower=(0, 0.007, 0), Brow=(0, -0.005, 0), BrowInner=(0, -0.006, 0)),
+    "Serious": merge(sym(LidUpper=(0, -0.012, 0), LidLower=(0, 0.010, 0), Brow=(0, -0.005, 0), BrowInner=(0, -0.006, 0)),
                      mouth("Neutral")),
     "Shy": merge(sym(**_lids(CLOSED_UP, CLOSED_LOW * 0.2, 0.18)), sym(Brow=(0, 0.009, 0), BrowInner=(0, 0.012, 0)),
-                 sym(**BLUSH), bones(Iris_L=(-0.026, -0.016, 0), Iris_R=(0.026, -0.016, 0)), mouth("Wavy")),
+                 sym(**BLUSH), bones(Iris_L=(-0.048, -0.020, 0), Iris_R=(0.048, -0.020, 0)), mouth("Wavy")),
     "Nervous": merge(sym(Brow=(0, 0.012, 0), BrowInner=(0, 0.018, 0), BrowOuter=(0, -0.005, 0), LidLower=(0, 0.005, 0)),
-                     bones(Iris_L=(0.012, 0, 0), Iris_R=(-0.012, 0, 0)), mouth("Wavy")),
+                     bones(Iris_L=(0.022, 0, 0), Iris_R=(-0.022, 0, 0)), mouth("Wavy")),
     "Playful": merge(EYES_SOFT, sym(Brow=(0, 0.008, 0), BrowOuter=(0, 0.004, 0)), mouth("Cat")),
     "Wink": merge(bones(**{f"{k}_L": v for k, v in _lids(HAPPY_UP, HAPPY_LOW).items()}),
                   bones(Brow_L=(0, -0.004, 0), Brow_R=(0, 0.009, 0)), mouth("Grin")),
-    "Pout": merge(sym(Brow=(0, 0.004, 0), BrowInner=(0, 0.010, 0), LidUpper=(0, -0.008, 0)), mouth("Pout")),
+    "Pout": merge(sym(Brow=(0, 0.004, 0), BrowInner=(0, 0.010, 0), LidUpper=(0, -0.012, 0)), mouth("Pout")),
     "Blush": sym(**BLUSH),
-    "LookLeft": bones(Iris_L=(0.045, 0, 0), Iris_R=(-0.045, 0, 0)),
-    "LookRight": bones(Iris_L=(-0.045, 0, 0), Iris_R=(0.045, 0, 0)),
-    "LookUp": sym(Iris=(0, 0.022, 0), LidUpper=(0, 0.006, 0), Brow=(0, 0.006, 0)),
-    "LookDown": sym(Iris=(0, -0.026, 0), LidUpperInner=(0, -0.010, 0), LidUpper=(0, -0.014, 0), LidUpperOuter=(0, -0.010, 0)),
+    "LookLeft": bones(Iris_L=(0.085, 0, 0), Iris_R=(-0.085, 0, 0)),
+    "LookRight": bones(Iris_L=(-0.085, 0, 0), Iris_R=(0.085, 0, 0)),
+    "LookUp": sym(Iris=(0, 0.026, 0), LidUpper=(0, 0.008, 0), Brow=(0, 0.006, 0)),
+    "LookDown": sym(Iris=(0, -0.030, 0), LidUpperInner=(0, -0.014, 0), LidUpper=(0, -0.020, 0), LidUpperOuter=(0, -0.014, 0)),
 }
 
 # Expressions whose eyes are already closed or squeezed: no automatic blinking on top.
@@ -169,4 +169,4 @@ NO_BLINK = {"Blink", "Happy", "Laugh", "Wink"}
 TALK_MOUTHS = {"OpenSmall": 0.40, "Open": 0.30, "O": 0.15, "Teeth": 0.15}
 
 # Eye-look range used by the controller (studs of iris travel at full deflection).
-LOOK_RANGE = (0.045, 0.026)
+LOOK_RANGE = (0.085, 0.030)
