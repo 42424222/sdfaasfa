@@ -4,13 +4,18 @@
 	Server:
 		local face = AnimeFace.attach(character, template)   -- clones + mounts the face on the Head
 		AnimeFace.setExpression(character, "Happy")           -- replicated through attributes
+		AnimeFace.setMouth(character, "Grin")                 -- force a 2D mouth image (nil = auto)
 		AnimeFace.setBlush(character, 1)
 		AnimeFace.talk(character, "hello there")
 
 	Client (bone transforms are local, so every client drives the faces it can see):
 		local ctrl = AnimeFace.new(face):BindToAttributes()
-		ctrl:SetExpression("Smile")  ctrl:Blink()  ctrl:SetLook(0.5, 0)  ctrl:LookAt(position)
+		ctrl:SetExpression("Smile")  ctrl:SetMouth("O")  ctrl:Blink()  ctrl:SetLook(0.5, 0)
 		ctrl:Talk("some text")  ctrl:SetBlush(true)  ctrl:SetEnabled(false)  -- hand control to animations
+
+	The mouth is a set of flat 2D images. Each image sits on its own bone (Mouth_<Name>): the one
+	shown rests on the skin and the others are pushed just inside the head, so swapping images is
+	instant and works the same from scripts or from Animation Editor keyframes.
 
 	Offsets come from the Presets module (generated from the Blender rig). The controller calibrates
 	itself from the bones' rest positions, so it works whatever axis convention the importer used.
@@ -56,7 +61,7 @@ end
 
 local EXPRESSIONS = {}
 for name, e in Presets.Expressions do
-	EXPRESSIONS[name] = { Blink = e.Blink, Offsets = toVectors(e.Offsets) }
+	EXPRESSIONS[name] = { Blink = e.Blink, Mouth = e.Mouth or Presets.DefaultMouth, Offsets = toVectors(e.Offsets) }
 end
 
 local CLOSED = EXPRESSIONS.Blink.Offsets
@@ -71,14 +76,15 @@ for _, side in { "L", "R" } do
 	BLUSH["Blush_" .. side] = true
 end
 
-local VISEMES = {}
-local VISEME_WEIGHTS = { Talk_A = 0.3, Talk_E = 0.2, Talk_I = 0.2, Talk_O = 0.15, Talk_U = 0.15 }
-local MOUTH_BONES = {}
-for _, name in Presets.Visemes do
-	VISEMES[name] = EXPRESSIONS[name].Offsets
-	for bone in EXPRESSIONS[name].Offsets do
-		MOUTH_BONES[bone] = true
-	end
+-- 2D mouth images: each sits on its own bone; the shown one is on the skin, the rest inside the head.
+local MOUTH_BY_BONE, MOUTH_NAMES = {}, {}
+for _, m in Presets.Mouths do
+	MOUTH_BY_BONE[m.Bone] = m
+	MOUTH_NAMES[m.Name] = true
+end
+local TALK_TOTAL = 0
+for _, t in Presets.TalkMouths do
+	TALK_TOTAL += t.Weight
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -328,6 +334,14 @@ function AnimeFace.setManual(target, manual)
 	end
 end
 
+-- Force one 2D mouth image (nil = follow the expression).
+function AnimeFace.setMouth(target, name)
+	local face = faceOf(target)
+	if face and (name == nil or MOUTH_NAMES[name]) then
+		face:SetAttribute("FaceMouth", name)
+	end
+end
+
 local talkSerial = 0
 function AnimeFace.talk(target, text)
 	local face = faceOf(target)
@@ -421,6 +435,9 @@ function AnimeFace.new(face, options)
 	self._blushCur = 0
 	self._talkUntil = 0
 	self._syllable = nil
+	self._lastSyllableOpen = false
+	self._mouthOverride = nil
+	self.Mouth = Presets.DefaultMouth
 	self._conns = {}
 	active[self] = true
 	ensureLoop()
@@ -442,6 +459,24 @@ end
 
 function AnimeFace:GetExpressions()
 	return table.clone(Presets.ExpressionOrder)
+end
+
+-- Show one 2D mouth image regardless of the expression (nil = back to the expression's mouth).
+function AnimeFace:SetMouth(name)
+	if name ~= nil and not MOUTH_NAMES[name] then
+		warn("AnimeFace: unknown mouth " .. tostring(name))
+		return false
+	end
+	self._mouthOverride = name
+	return true
+end
+
+function AnimeFace:GetMouths()
+	local out = {}
+	for _, m in Presets.Mouths do
+		table.insert(out, m.Name)
+	end
+	return out
 end
 
 function AnimeFace:Blink()
@@ -529,6 +564,8 @@ function AnimeFace:BindToAttributes()
 		else
 			self:SetLook(nil)
 		end
+		local mouth = face:GetAttribute("FaceMouth")
+		self:SetMouth(if type(mouth) == "string" and MOUTH_NAMES[mouth] then mouth else nil)
 		-- FaceManual = true hands the bones to hand-made animations (Animation Editor tracks)
 		local manual = face:GetAttribute("FaceManual") == true
 		if manual == self.Enabled then
@@ -617,35 +654,39 @@ function AnimeFace:_lookTarget(now)
 	return Vector2.new(0, 0)
 end
 
-function AnimeFace:_talkOffsets(now)
+-- Talking flips through 2D mouth images, with the expression's own mouth between syllables.
+function AnimeFace:_talkMouth(now)
 	local syl = self._syllable
 	if syl and now >= syl.Start + syl.Duration then
 		syl = nil
 		self._syllable = nil
 	end
 	if not syl and now < self._talkUntil then
-		local pick, roll = "Talk_A", math.random()
-		for _, name in Presets.Visemes do
-			roll -= VISEME_WEIGHTS[name] or 0.2
-			if roll <= 0 then
-				pick = name
-				break
+		local closed = self._lastSyllableOpen and math.random() < 0.55
+		local pick = nil
+		if not closed then
+			local roll = math.random() * TALK_TOTAL
+			for _, t in Presets.TalkMouths do
+				roll -= t.Weight
+				pick = t.Name
+				if roll <= 0 then
+					break
+				end
 			end
 		end
-		local pause = math.random() < 0.12
 		syl = {
-			Viseme = pick,
+			Mouth = pick, -- nil = closed (the expression's mouth)
 			Start = now,
-			Duration = if pause then randomRange(0.06, 0.12) else randomRange(0.08, 0.16),
-			Amp = if pause then 0 else randomRange(0.6, 1.0),
+			Duration = if closed then randomRange(0.05, 0.09) else randomRange(0.08, 0.15),
 		}
+		self._lastSyllableOpen = pick ~= nil
 		self._syllable = syl
 	end
-	if not syl then
-		return nil, 0
-	end
-	local phase = (now - syl.Start) / syl.Duration
-	return VISEMES[syl.Viseme], math.sin(math.pi * math.clamp(phase, 0, 1)) * syl.Amp
+	return syl and syl.Mouth
+end
+
+function AnimeFace:_currentMouth(now)
+	return self:_talkMouth(now) or self._mouthOverride or EXPRESSIONS[self.Expression].Mouth
 end
 
 function AnimeFace:_write(m, off)
@@ -664,9 +705,12 @@ function AnimeFace:_step(dt)
 	end
 	local now = os.clock()
 
-	-- expression easing
+	-- expression easing (mouth images swap instantly instead, see below)
 	local k = 1 - math.exp(-self._exprSpeed * dt)
 	for name in self._map do
+		if MOUTH_BY_BONE[name] then
+			continue
+		end
 		local target = self._exprTarget[name] or ZERO
 		local cur = self._exprCur[name] or ZERO
 		if cur ~= target then
@@ -682,13 +726,8 @@ function AnimeFace:_step(dt)
 	local lt = self:_lookTarget(now)
 	self._lookCur = self._lookCur:Lerp(lt, 1 - math.exp(-22 * dt))
 	self._blushCur += (self._blushTarget - self._blushCur) * (1 - math.exp(-6 * dt))
-	local viseme, amount = self:_talkOffsets(now)
-	if viseme then
-		local jaw = self._exprCur.LipLower
-		if jaw and jaw.Y < -0.015 then
-			amount *= 0.45 -- the expression already has an open mouth
-		end
-	end
+	local shownMouth = self:_currentMouth(now)
+	self.Mouth = shownMouth
 
 	if self.CullDistance and workspace.CurrentCamera and self.RigPart then
 		local dist = (workspace.CurrentCamera.CFrame.Position - self.RigPart.Position).Magnitude
@@ -717,8 +756,9 @@ function AnimeFace:_step(dt)
 		elseif name == "Iris_L" then
 			off += Vector3.new(-look.X * range.X, look.Y * range.Y, 0)
 		end
-		if viseme and MOUTH_BONES[name] then
-			off += (viseme[name] or ZERO) * amount
+		local mouth = MOUTH_BY_BONE[name]
+		if mouth then
+			off = Vector3.new(0, 0, if mouth.Name == shownMouth then mouth.Show else mouth.Hide)
 		end
 		if BLUSH[name] and blushZ > off.Z then
 			off = Vector3.new(off.X, off.Y, blushZ)

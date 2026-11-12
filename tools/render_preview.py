@@ -31,27 +31,79 @@ def srgb_to_linear(c):
     return tuple(((x + 0.055) / 1.055) ** 2.4 if x > 0.04045 else x / 12.92 for x in c[:3]) + (1.0,)
 
 
+def add_rest_normals(model):
+    """Store the authored normals as a point attribute for the preview shader.
+
+    The face bones only translate, so Roblox's skinned normals stay exactly as authored. Blender
+    instead re-derives custom normals from the deformed faces, which would light the stretched
+    lid skin differently in previews.
+    """
+    me = bpy.data.objects["AnimeFace"].data
+    attr = me.attributes.get("rest_normal") or me.attributes.new("rest_normal", 'FLOAT_VECTOR', 'POINT')
+    attr.data.foreach_set("vector", bb.to_blender(model["N"]).astype("float32").ravel())
+
+
 def setup_material():
+    """Raster-style preview shading: colour x (sky/ground ambient + key + fill), from the normal only.
+
+    Roblox shades each pixel from its normal and the lights, with no ray-traced interaction
+    between the thin face layers, so the previews do the same instead of path tracing
+    (which draws false outlines around overlay patches floating a few thousandths of a stud up).
+    """
     mat = bpy.data.materials["AnimeFace_Mat"]
     nt = mat.node_tree
-    bsdf = nt.nodes["Principled BSDF"]
     tex = nt.nodes["Color"]
+    tex.image.alpha_mode = 'CHANNEL_PACKED'
     mix = nt.nodes.new("ShaderNodeMix")
     mix.data_type = 'RGBA'
     mix.inputs["A"].default_value = srgb_to_linear(SKIN)
     nt.links.new(tex.outputs["Alpha"], mix.inputs["Factor"])
     nt.links.new(tex.outputs["Color"], mix.inputs["B"])
-    nt.links.new(mix.outputs["Result"], bsdf.inputs["Base Color"])
-    # channel-packed: no premultiply round-trip (straight-alpha unpremultiply brightens low-alpha edges)
-    tex.image.alpha_mode = 'CHANNEL_PACKED'
+    rest = nt.nodes.new("ShaderNodeAttribute")
+    rest.attribute_name = "rest_normal"
+    norm = nt.nodes.new("ShaderNodeVectorMath")
+    norm.operation = 'NORMALIZE'
+    nt.links.new(rest.outputs["Vector"], norm.inputs[0])
+    normal = norm.outputs["Vector"]
+
+    def math(op, a, b):
+        m = nt.nodes.new("ShaderNodeMath")
+        m.operation = op
+        for i, v in enumerate((a, b)):
+            if isinstance(v, (int, float)):
+                m.inputs[i].default_value = v
+            else:
+                nt.links.new(v, m.inputs[i])
+        return m.outputs[0]
+
+    def lambert(direction, strength):
+        d = Vector(direction).normalized()
+        dot = nt.nodes.new("ShaderNodeVectorMath")
+        dot.operation = 'DOT_PRODUCT'
+        nt.links.new(normal, dot.inputs[0])
+        dot.inputs[1].default_value = tuple(d)
+        return math('MULTIPLY', math('MAXIMUM', dot.outputs["Value"], 0.0), strength)
+
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(normal, sep.inputs[0])
+    sky, ground = 0.50, 0.30
+    ambient = math('ADD', math('MULTIPLY', sep.outputs["Z"], (sky - ground) / 2), (sky + ground) / 2)
+    light = math('ADD', math('ADD', ambient, lambert((-0.45, -0.75, 0.55), 0.62)), lambert((0.65, -0.55, 0.05), 0.14))
+    scale = nt.nodes.new("ShaderNodeVectorMath")
+    scale.operation = 'SCALE'
+    nt.links.new(mix.outputs["Result"], scale.inputs[0])
+    nt.links.new(light, scale.inputs["Scale"])
+    em = nt.nodes.new("ShaderNodeEmission")
+    nt.links.new(scale.outputs[0], em.inputs["Color"])
+    nt.links.new(em.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
 
 
 def setup_scene(res):
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     scene.cycles.device = 'CPU'
-    scene.cycles.samples = 20
-    scene.cycles.use_denoising = True
+    scene.cycles.samples = 24
+    scene.cycles.use_denoising = False   # emission-only shading: samples only anti-alias, keep lines crisp
     scene.render.resolution_x = res
     scene.render.resolution_y = res
     scene.view_settings.view_transform = 'Standard'
@@ -77,10 +129,6 @@ def setup_scene(res):
     for o in scene.objects:
         if o.type == 'ARMATURE':
             o.hide_render = True
-        elif o.type == 'MESH':
-            # Roblox's shadow maps cannot resolve the sub-0.02-stud layer offsets; Cycles would draw
-            # micro-shadows around every overlay, so the face does not shadow itself in previews.
-            o.visible_shadow = False
     return scene, cam
 
 
@@ -100,7 +148,18 @@ VIEWS = {
     "three_quarter": ((-2.35, -4.1, 0.55), (0.0, 0.0, -0.08), None),
     "side": ((-6.0, -0.9, -0.05), (0.0, 0.0, -0.05), 1.05),
     "face_close": ((0.0, -6.0, -0.10), (0.0, 0.0, -0.10), 0.62),
+    "face_mid": ((0.0, -6.0, -0.13), (0.0, 0.0, -0.13), 0.74),
 }
+
+# Short demo clip at 12 fps: (expression, mouth override or None, frames). Talking flips 2D mouths.
+ANIM_FPS = 12
+ANIM = [
+    ("Neutral", None, 8), ("Blink", None, 2), ("Neutral", None, 6),
+    ("Smile", "OpenSmall", 2), ("Smile", "Open", 2), ("Smile", None, 1), ("Smile", "O", 2), ("Smile", "Teeth", 2),
+    ("Smile", None, 1), ("Smile", "Open", 2), ("Smile", "OpenSmall", 2), ("Smile", None, 6),
+    ("Happy", None, 10), ("Laugh", None, 10), ("Surprised", None, 8), ("Shocked", None, 8), ("Angry", None, 10),
+    ("Sad", None, 10), ("Smug", None, 10), ("Shy", None, 10), ("Wink", None, 10), ("Neutral", None, 6),
+]
 
 
 def render(scene, cam, view, path):
@@ -121,8 +180,9 @@ def main():
         arm.animation_data.action = None
     model = fd.build()
     bones = {b["name"]: b for b in model["bones"]}
+    add_rest_normals(model)
     setup_material()
-    res = 900 if mode == "look" else 480
+    res = 900 if mode == "look" else (420 if mode == "anim" else 480)
     scene, cam = setup_scene(res)
 
     def pose(name):
@@ -144,6 +204,25 @@ def main():
             pose(name)
             render(scene, cam, "front", os.path.join(out, f"pose_{name}_front.png"))
             render(scene, cam, "three_quarter", os.path.join(out, f"pose_{name}_34.png"))
+    elif mode == "anim":
+        cache, frames = {}, []
+        for expr, mouth, n in ANIM:
+            key = (expr, mouth)
+            if key not in cache:
+                offsets = fd.expand_pose(fp.PRESETS[expr])
+                if mouth:
+                    offsets = {k: v for k, v in offsets.items() if not k.startswith("Mouth_")}
+                    offsets.update(fd.mouth_offsets(mouth))
+                bb.pose_offsets(arm, offsets, bones)
+                bpy.context.view_layer.update()
+                cache[key] = os.path.join(out, f"anim_{len(cache):02d}.png")
+                render(scene, cam, "face_mid", cache[key])
+            frames.append((cache[key], n))
+        # ffmpeg concat list: each unique pose is held for its frame count
+        with open(os.path.join(out, "anim.txt"), "w") as f:
+            for path, n in frames:
+                f.write(f"file '{path}'\nduration {n / ANIM_FPS:.4f}\n")
+            f.write(f"file '{frames[-1][0]}'\n")
 
 
 if __name__ == "__main__":

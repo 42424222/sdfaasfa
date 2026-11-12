@@ -3,7 +3,6 @@ Generate roblox/AnimeFace/Presets.lua from the Python rig + presets (single sour
 
 Run with system python3:  python3 tools/export_luau.py
 """
-import math
 import os
 import sys
 
@@ -15,8 +14,6 @@ import face_design as fd  # noqa: E402
 import face_presets as fp  # noqa: E402
 
 OUT = os.path.join(HERE, "..", "roblox", "AnimeFace", "Presets.lua")
-NO_BLINK = {"Blink", "Happy", "Laugh", "Wink"}
-VISEMES = ["Talk_A", "Talk_I", "Talk_U", "Talk_E", "Talk_O"]
 
 
 def num(x, nd=5):
@@ -36,12 +33,14 @@ def main():
         "-- Offsets are in studs: X = outward for _L/_R bones (toward that ear) or +X for centre bones,",
         "-- Y = up, Z = out of the face. Each bone's own offset; parents' motion is inherited.",
         "-- Bone Position is the rest position in head space (X right, Y up, Z back, studs).",
+        "-- Mouths are 2D images: the shown one sits on the skin, the others are pushed inside the head.",
         "return {",
-        "\tVersion = 1,",
+        "\tVersion = 2,",
         f"\tBlushShow = {num(fd.BLUSH_SHOW)},",
         f"\tLookRange = {{ X = {num(fp.LOOK_RANGE[0])}, Y = {num(fp.LOOK_RANGE[1])} }},",
         f"\tDesignEyeDistance = {num(eye_dist, 6)},",
         f"\tHeadRadius = {num(fd.R, 6)},",
+        f'\tDefaultMouth = "{fd.DEFAULT_MOUTH}",',
         "\tBones = {",
     ]
     for b in bones:
@@ -50,21 +49,28 @@ def main():
         lines.append(f'\t\t{{ Name = "{b["name"]}", Parent = {parent}, Angle = {num(b["frame_u"] / fd.R, 6)}, '
                      f'Position = {{ {num(p[0], 6)}, {num(p[1], 6)}, {num(p[2], 6)} }} }},')
     lines.append("\t},")
+    lines.append("\tMouths = {")
+    for name in fd.MOUTHS:
+        show, hide = fd.mouth_show_hide(name)
+        lines.append(f'\t\t{{ Name = "{name}", Bone = "Mouth_{name}", Show = {num(show)}, Hide = {num(hide)} }},')
+    lines.append("\t},")
     lines.append("\tExpressions = {")
     for name, preset in fp.PRESETS.items():
         offs = fd.expand_pose(preset)
         order = [b["name"] for b in bones if b["name"] in offs]
         body = ", ".join(f"{bn} = {{ {num(offs[bn][0])}, {num(offs[bn][1])}, {num(offs[bn][2])} }}" for bn in order)
-        blink = "false" if name in NO_BLINK else "true"
-        lines.append(f"\t\t{name} = {{ Blink = {blink}, Offsets = {{ {body} }} }},")
+        blink = "false" if name in fp.NO_BLINK else "true"
+        mouth = preset.get("mouth", fd.DEFAULT_MOUTH)
+        lines.append(f'\t\t{name} = {{ Blink = {blink}, Mouth = "{mouth}", Offsets = {{ {body} }} }},')
     lines.append("\t},")
     lines.append("\tExpressionOrder = { " + ", ".join(f'"{n}"' for n in fp.PRESETS) + " },")
-    lines.append("\tVisemes = { " + ", ".join(f'"{n}"' for n in VISEMES) + " },")
+    lines.append("\tTalkMouths = { " + ", ".join(f'{{ Name = "{n}", Weight = {num(w)} }}' for n, w in fp.TALK_MOUTHS.items()) + " },")
     lines.append("}")
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
-    print("wrote", os.path.abspath(OUT), f"({len(fp.PRESETS)} expressions, {len(bones)} bones, eye distance {eye_dist:.4f})")
+    print("wrote", os.path.abspath(OUT),
+          f"({len(fp.PRESETS)} expressions, {len(fd.MOUTHS)} mouths, {len(bones)} bones, eye distance {eye_dist:.4f})")
 
 
 if __name__ == "__main__":

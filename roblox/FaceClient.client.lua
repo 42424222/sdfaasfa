@@ -77,7 +77,11 @@ end)
 if DEMO_KEYS then
 	local remote = ReplicatedStorage:WaitForChild("AnimeFaceRemote")
 	local order = AnimeFace.Presets.ExpressionOrder
-	local index, blush = 1, false
+	local mouths = {}
+	for _, m in AnimeFace.Presets.Mouths do
+		table.insert(mouths, m.Name)
+	end
+	local index, mouthIndex, blush = 1, 0, false
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then
 			return
@@ -86,6 +90,11 @@ if DEMO_KEYS then
 			index = (index - 1 + (if input.KeyCode == Enum.KeyCode.Period then 1 else -1)) % #order + 1
 			remote:FireServer("Expression", order[index])
 			print("AnimeFace expression:", order[index])
+		elseif input.KeyCode == Enum.KeyCode.M then
+			-- cycle the 2D mouth images, then back to automatic (0)
+			mouthIndex = (mouthIndex + 1) % (#mouths + 1)
+			remote:FireServer("Mouth", mouths[mouthIndex])
+			print("AnimeFace mouth:", mouths[mouthIndex] or "automatic")
 		elseif input.KeyCode == Enum.KeyCode.Slash then
 			blush = not blush
 			remote:FireServer("Blush", if blush then 1 else 0)

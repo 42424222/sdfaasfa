@@ -188,17 +188,73 @@ local bz = actualWorld(world, inst, "Blush_L")
 check(math.abs(bz.Magnitude - Presets.BlushShow) < 1e-3, "blush should move out by BlushShow")
 ctrl:SetBlush(false)
 
--- talking opens the jaw at some point
-ctrl:Talk(1.0)
-local opened = false
-for _ = 1, 60 do
-	step(1 / 60)
-	local jaw = inst.LipLower.Transform.Position.Magnitude
-	if jaw > 0.005 then
-		opened = true
+-- 2D mouth images: helpers
+local function mouthInfo(name)
+	for _, m in Presets.Mouths do
+		if m.Name == name then
+			return m
+		end
 	end
 end
-check(opened, "Talk should open the mouth")
+local function mouthShown(name)
+	local m = mouthInfo(name)
+	local want = expectedWorld(m.Bone, Vector3.new(0, 0, m.Show))
+	return (actualWorld(world, inst, m.Bone) - want).Magnitude < 1e-4
+end
+local function shownMouths()
+	local out = {}
+	for _, m in Presets.Mouths do
+		if mouthShown(m.Name) then
+			table.insert(out, m.Name)
+		end
+	end
+	return out
+end
+
+-- exactly one mouth image is out at a time, and it swaps instantly (no fade)
+ctrl:SetBlush(false)
+ctrl:SetExpression("Neutral", 0.01)
+step(0.3)
+check(#shownMouths() == 1 and mouthShown(Presets.DefaultMouth), "Neutral should show only the default mouth")
+ctrl:SetExpression("Laugh", 2.0) -- slow fade for the eyes and brows...
+step(1 / 60)
+check(#shownMouths() == 1 and mouthShown("Laugh"), "...but the mouth image swaps on the next frame")
+
+-- SetMouth overrides the expression's mouth until cleared
+ctrl:SetMouth("O")
+step(1 / 60)
+check(#shownMouths() == 1 and mouthShown("O"), "SetMouth should show the requested image")
+ctrl:SetMouth(nil)
+step(1 / 60)
+check(mouthShown("Laugh"), "SetMouth(nil) should return to the expression's mouth")
+check(ctrl:SetMouth("NotAMouth") == false, "unknown mouths should be rejected")
+
+-- talking flips between talk images and the expression's mouth, one image at a time
+ctrl:SetExpression("Smile", 0.01)
+step(0.3)
+ctrl:Talk(1.5)
+local seen, single = {}, true
+for _ = 1, 90 do
+	step(1 / 60)
+	local s = shownMouths()
+	if #s ~= 1 then
+		single = false
+	end
+	if s[1] then
+		seen[s[1]] = true
+	end
+end
+local talkSeen = 0
+for _, t in Presets.TalkMouths do
+	if seen[t.Name] then
+		talkSeen += 1
+	end
+end
+check(single, "exactly one mouth image should be visible while talking")
+check(talkSeen >= 2, "talking should flip through several mouth images")
+check(seen.Smile == true, "the expression's mouth should show between syllables")
+step(1.0)
+check(#shownMouths() == 1 and mouthShown("Smile"), "the mouth should return to the expression after talking")
 
 -- disabling hands bones back (identity transforms)
 ctrl:SetEnabled(false)

@@ -34,6 +34,8 @@ remote.OnServerEvent:Connect(function(player, action, value)
 	end
 	if action == "Expression" and type(value) == "string" and AnimeFace.Presets.Expressions[value] then
 		AnimeFace.setExpression(character, value)
+	elseif action == "Mouth" and (value == nil or type(value) == "string") then
+		AnimeFace.setMouth(character, value) -- validated against the mouth list; nil = automatic
 	elseif action == "Blush" and type(value) == "number" then
 		AnimeFace.setBlush(character, value)
 	end
