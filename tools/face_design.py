@@ -9,10 +9,14 @@ Design space used for placing features on the head surface:
   u = horizontal arc length around the head (u > 0 is the character's right side)
   v = arc length along the head profile from the equator (v > 0 is up)
 
-Structure (follows the supplied example face): the skin around the eyes stays flush with the
-head; the eye white and iris sit on the skin; the lashes, crease, lid highlight, lower lashes and
-brows are raised 3D ridges. A thin skin "lid" sheet (barely above the skin) slides over the eye
-to blink. Mouths are flat 2D images.
+Construction (follows the supplied example face):
+  * each eye is a real opening in the head: a socket drops 0.045 studs into the head and the eye
+    white sits at its bottom, with the iris on it and the highlights floating above;
+  * the skin around each opening is a deformable patch stitched into the head shell, so the lids
+    can close over the socket for blinks;
+  * lashes, lower lashes, lid lines and brows are flat plates of even thickness with straight
+    walls, sitting on the skin; the upper lash plate overhangs the top of the opening;
+  * mouths are flat 2D images.
 
 Imported by paint_atlas.py (system Python) and the Blender scripts, so it only needs numpy.
 """
@@ -35,10 +39,10 @@ ARC = RHO * math.pi / 2
 V_MAX = YC + ARC + RC
 
 # ---------------------------------------------------------------------------
-# Layout (design space)
+# Layout (design space). Eye placement and opening size follow the example face.
 # ---------------------------------------------------------------------------
-EYE_U = 0.265
-EYE_V = -0.090
+EYE_U = 0.320
+EYE_V = -0.190
 SIDES = {"R": 1.0, "L": -1.0}        # R = +X (character right), L = -X
 
 
@@ -55,33 +59,31 @@ def _dir(deg):
 
 
 # Eye-local coordinates: ex = outward (toward the ear), ey = up, origin = eye centre.
-# A big, wide almond eye (0.36 studs, inner corners 0.17 apart): flat calm upper lid, rounded
-# lower lid, a large pointed inner corner set low, and a sharp outer corner that sits higher.
-EYE_INNER = (-0.180, -0.040)
-EYE_OUTER = (0.180, 0.010)
-EYE_TOP = (-0.050, 0.068)
-EYE_BOTTOM = (0.015, -0.074)
-EYE_UPPER = [_hermite(EYE_INNER, _dir(52), EYE_TOP, (1, 0), 0.45), _hermite(EYE_TOP, (1, 0), EYE_OUTER, _dir(-26), 0.45)]
-EYE_LOWER = [_hermite(EYE_OUTER, _dir(204), EYE_BOTTOM, (-1, 0), 0.42), _hermite(EYE_BOTTOM, (-1, 0), EYE_INNER, _dir(160), 0.42)]
-# Iris: smaller than the opening, so centred it touches neither lid (about 0.01 of white each side)
-IRIS_C = (0.0, -0.002)
-IRIS_R = (0.056, 0.059)
-SCLERA_C = (0.0, -0.004)
-SCLERA_K = 0.25                       # eye white reaches this fraction into the lid sheet
+# A wide lens-shaped opening (0.39 x 0.125) with blunt, rounded ends; the upper lash plate
+# overhangs its top edge, which gives the calm, flat-topped look.
+EYE_INNER = (-0.194, 0.000)
+EYE_OUTER = (0.194, -0.010)
+EYE_TOP = (-0.030, 0.060)
+EYE_BOTTOM = (0.070, -0.063)
+EYE_UPPER = [_hermite(EYE_INNER, _dir(72), EYE_TOP, (1, 0), 0.50), _hermite(EYE_TOP, (1, 0), EYE_OUTER, _dir(-62), 0.50)]
+EYE_LOWER = [_hermite(EYE_OUTER, _dir(242), EYE_BOTTOM, (-1, 0), 0.50), _hermite(EYE_BOTTOM, (-1, 0), EYE_INNER, _dir(110), 0.50)]
+
+SOCKET_DEPTH = 0.045                  # eye white sits this far below the skin
+IRIS_C = (-0.004, -0.006)
+IRIS_R = (0.050, 0.053)               # smaller than the opening: white shows all round it
+H_IRIS = 0.0012                       # iris above the eye white
+H_SHINE = 0.0220                      # highlights float this far above the eye white
 SCLERA_UV = (0.215, 0.110)            # half extents mapped onto the sclera texture
-RING_C, RING_R, RING_P = (0.040, -0.004), (0.255, 0.165), 2.4
-RING_K = [0.0, 0.07, 0.16, 0.27, 0.40, 0.55, 0.70, 0.85, 1.0]
-RING_FLAT_K = 0.60                    # the lid sheet stays at full height up to this fraction
 
 # Highlights relative to the iris centre, in head-space u (same screen side on both eyes)
 HIGHLIGHTS = [
     # (du, dv), (rx, ry), rotation (deg)
-    ((0.020, 0.024), (0.0175, 0.0120), 18.0),
-    ((-0.021, -0.027), (0.0066, 0.0066), 0.0),
+    ((0.018, 0.022), (0.0150, 0.0105), 18.0),
+    ((-0.019, -0.024), (0.0058, 0.0058), 0.0),
 ]
 
-BROW = [(-0.168, 0.152), (-0.055, 0.170), (0.075, 0.178), (0.210, 0.166)]
-BLUSH_U, BLUSH_V, BLUSH_SIZE = 0.275, -0.245, (0.170, 0.070)
+BROW = [(-0.205, 0.168), (-0.080, 0.204), (0.080, 0.211), (0.235, 0.180)]
+BLUSH_U, BLUSH_V, BLUSH_SIZE = 0.330, -0.315, (0.170, 0.066)
 
 # 2D mouth: flat images on patches that swap by sliding in and out of the head. It sits low on
 # the face, on the head's rounded lower edge, like the reference faces.
@@ -91,21 +93,19 @@ MOUTHS = ["Neutral", "Smile", "Frown", "Smirk", "OpenSmall", "Open", "Laugh", "G
           "Cat", "Wavy"]
 DEFAULT_MOUTH = "Neutral"
 
-# Layer heights above the skin (studs)
-H_SCLERA = 0.0010
-H_IRIS = 0.0022
-H_SHINE = 0.0033
-H_RING = 0.0045                       # lid sheet: just above the iris layers, nearly flush with the skin
-H_RING_RIM = -0.0015                  # ... and tucked under the skin at its edge: no visible seam
-H_WALL_BOTTOM = 0.0014
-TUCK = 0.0008                         # ridge bases sink this far below the surface they sit on
-LASH_BASE_IN = 0.0016                 # bottom of the lash ridge's eye-side wall (just above the eye white)
+# Flat plate heights above the skin (studs)
+H_LASH = 0.0095                       # upper lash plate and its spikes
+LASH_WALL_IN = -0.0140                # the lash's overhanging edge drops into the socket this far
+H_LOWER = 0.0045                      # lower lash line and tiles
+H_LINE = 0.0040                       # crease and pale lid line
+H_BROW = 0.0065
+PLATE_BASE = -0.0010                  # plate walls sink slightly into the skin
 H_MOUTH = 0.0045
 MOUTH_HIDE = 0.0300                   # inactive mouths sit this far inside the head
 MOUTH_STAGGER = 0.00015               # so two mouths shown at once never z-fight
 H_BLUSH_SHOWN = 0.0180
 BLUSH_SHOW = 0.0300                   # the blush rests this far inside the head
-IRIS_RADIUS = R + H_IRIS              # look = rotating the iris around the head axis at this radius
+IRIS_RADIUS = R - SOCKET_DEPTH + H_IRIS   # look = rotating the iris around the head axis at this radius
 
 # ---------------------------------------------------------------------------
 # Texture atlas (pixel rects on a 1024 canvas, origin top-left)
@@ -223,13 +223,6 @@ def taper(n, stops):
     return np.interp(t, [a for a, _ in stops], [b for _, b in stops])
 
 
-def superellipse(c, rad, p, phi):
-    cphi, sphi = np.cos(phi), np.sin(phi)
-    x = rad[0] * np.sign(cphi) * np.abs(cphi) ** (2.0 / p)
-    y = rad[1] * np.sign(sphi) * np.abs(sphi) ** (2.0 / p)
-    return np.stack([c[0] + x, c[1] + y], -1)
-
-
 def ctrl_weights(s, ctrl):
     """Smooth partition of unity along a curve parameter. ctrl = [(s_k, bone), ...] sorted."""
     s = float(np.clip(s, ctrl[0][0], ctrl[-1][0]))
@@ -252,15 +245,27 @@ def mix_weights(a, b, f):
     return out
 
 
+def inside_polygon(pts, poly):
+    """Even-odd point-in-polygon test for many 2D points."""
+    pts = np.atleast_2d(pts)
+    x, y = pts[:, 0], pts[:, 1]
+    inside = np.zeros(len(pts), bool)
+    for (ax, ay), (bx, by) in zip(poly, np.roll(poly, -1, axis=0)):
+        cond = (ay > y) != (by > y)
+        xint = ax + (y - ay) * (bx - ax) / np.where(np.abs(by - ay) < 1e-12, 1e-12, by - ay)
+        inside ^= cond & (x < xint)
+    return inside
+
+
 # ---------------------------------------------------------------------------
 # Eye contour (shared by geometry, rig and preset solving)
 # ---------------------------------------------------------------------------
-N_UPPER = 49
-N_LOWER = 37
+N_UPPER = 53
+N_LOWER = 39
 
 
 def eye_contour():
-    """Opening contour as a closed loop.
+    """Opening contour as a closed loop (clockwise in eye-local coordinates).
 
     Returns (pts[N,2], arc[N] 0=upper/1=lower, s[N] param along its arc, p[N] loop param).
     Upper arc runs inner->outer corner, lower arc runs outer->inner corner.
@@ -272,6 +277,13 @@ def eye_contour():
     s = np.concatenate([np.linspace(0, 1, N_UPPER)[:-1], np.linspace(0, 1, N_LOWER)[:-1]])
     p = np.concatenate([np.linspace(0, 0.5, N_UPPER)[:-1], np.linspace(0.5, 1.0, N_LOWER)[:-1]])
     return pts, arc, s, p
+
+
+def closed_normals(pts):
+    """Outward normals of a closed clockwise loop."""
+    t = np.roll(pts, -1, axis=0) - np.roll(pts, 1, axis=0)
+    t /= np.linalg.norm(t, axis=1, keepdims=True)
+    return np.stack([-t[:, 1], t[:, 0]], -1)
 
 
 UP_BASIS = ["Eye", "LidUpperInner", "LidUpper", "LidUpperOuter", "Eye"]
@@ -303,32 +315,6 @@ def contour_weights(arc, s, side):
     return sided(lid_weights(arc, s), side)
 
 
-def ring_profile(k):
-    """Lid-sheet height as a function of its ring fraction k (0 = eye edge, 1 = outer rim)."""
-    k = np.asarray(k, float)
-    slope = H_RING + (H_RING_RIM - H_RING) * smoothstep((k - RING_FLAT_K) / (1 - RING_FLAT_K))
-    return np.where(k <= RING_FLAT_K, H_RING, slope)
-
-
-def surface_height(ex, ey):
-    """Height of the visible surface at eye-local points: eye white inside the opening,
-    the lid sheet around it, the skin beyond (matches the meshes built below)."""
-    pts, _, _, _ = eye_contour()
-    ang = np.arctan2(pts[:, 1] - RING_C[1], pts[:, 0] - RING_C[0])
-    rim = superellipse(RING_C, RING_R, RING_P, ang)
-    order = np.argsort(ang)
-    a = np.concatenate([ang[order] - 2 * np.pi, ang[order], ang[order] + 2 * np.pi])
-    c = np.concatenate([pts[order]] * 3)
-    r = np.concatenate([rim[order]] * 3)
-    ex, ey = np.broadcast_arrays(np.asarray(ex, float), np.asarray(ey, float))
-    phi = np.arctan2(ey - RING_C[1], ex - RING_C[0])
-    cx, cy = np.interp(phi, a, c[:, 0]), np.interp(phi, a, c[:, 1])
-    rx, ry = np.interp(phi, a, r[:, 0]), np.interp(phi, a, r[:, 1])
-    dx, dy = rx - cx, ry - cy
-    k = ((ex - cx) * dx + (ey - cy) * dy) / (dx * dx + dy * dy)
-    return np.where(k < 0, H_SCLERA, np.where(k <= 1, np.maximum(ring_profile(k), 0.0), 0.0))
-
-
 # ---------------------------------------------------------------------------
 # Mesh accumulator
 # ---------------------------------------------------------------------------
@@ -340,7 +326,7 @@ class MeshBuilder:
     def add(self, part, P, N, UV, W, faces, keep_winding=False):
         P = np.asarray(P, float).reshape(-1, 3)
         N = np.asarray(N, float).reshape(-1, 3)
-        UV = np.asarray(UV, float).reshape(-1, 2)
+        UV = np.broadcast_to(np.asarray(UV, float), (len(P), 2)) if np.ndim(UV) == 1 else np.asarray(UV, float).reshape(-1, 2)
         assert len(P) == len(N) == len(UV) == len(W), part
         base = self.count
         self.P.append(P)
@@ -396,25 +382,68 @@ def disc_faces(nrings, nseg):
     return faces
 
 
+def stitch(a_ang, b_ang):
+    """Triangles joining two closed loops sorted by clockwise angle (indices: A = 0..na-1,
+    B = na..na+nb-1). Walks both loops together, always advancing the one that lags."""
+    na, nb = len(a_ang), len(b_ang)
+    faces, i, j = [], 0, 0
+    while i < na or j < nb:
+        an = a_ang[i + 1] if i + 1 < na else a_ang[0] + 2 * np.pi
+        bn = b_ang[j + 1] if j + 1 < nb else b_ang[0] + 2 * np.pi
+        if j >= nb or (i < na and an <= bn):
+            faces.append([i % na, na + j % nb, (i + 1) % na])
+            i += 1
+        else:
+            faces.append([i % na, na + j % nb, na + (j + 1) % nb])
+            j += 1
+    return faces
+
+
 # ---------------------------------------------------------------------------
-# Parts
+# Head shell, with a rectangular block of cells cut out around each eye. The block is
+# replaced by the deformable lid patch built in build_eye (its outer edge reuses the
+# block's grid vertices exactly, so the surface stays watertight).
 # ---------------------------------------------------------------------------
-def build_shell(mb):
-    # 72 columns: facets sag at most 0.0006 inside the true surface, still below every layer
-    # placed on it (eye white +0.0010, ridge bases -0.0008, lid rim -0.0015 tuck further in)
-    nt = 72
+SHELL_COLS = 72
+SHELL_U = np.linspace(-math.pi * R, math.pi * R, SHELL_COLS + 1)     # seam at the back of the head
+
+
+def _shell_rows():
     band = [YC * k / 6 for k in range(7)]
     a_vals = band + [YC + ARC * k / 8 for k in range(1, 9)] + [YC + ARC + d for d in (0.100, 0.200)]
-    v_vals = sorted(set([round(-a, 6) for a in a_vals] + [round(a, 6) for a in a_vals]))
-    rows = len(v_vals)
-    cols = nt + 1
-    u = np.linspace(-math.pi * R, math.pi * R, cols)        # seam at the back of the head
-    uu, vv = np.meshgrid(u, np.array(v_vals))
+    return np.array(sorted(set([round(-a, 6) for a in a_vals] + [round(a, 6) for a in a_vals])))
+
+
+SHELL_V = _shell_rows()
+_C0 = int(np.argmin(np.abs(SHELL_U - 0.0525)))
+_C1 = int(np.argmin(np.abs(SHELL_U - 0.5779)))
+_R0 = int(np.argmin(np.abs(SHELL_V + YC)))
+_R1 = int(np.argmin(np.abs(SHELL_V + YC / 6)))
+BLOCKS = {"R": (_C0, _C1, _R0, _R1), "L": (SHELL_COLS - _C1, SHELL_COLS - _C0, _R0, _R1)}
+
+
+def block_loop(side):
+    """Grid vertices (column, row) around an eye block, in a closed loop."""
+    c0, c1, r0, r1 = BLOCKS[side]
+    loop = [(c, r0) for c in range(c0, c1)] + [(c1, r) for r in range(r0, r1)]
+    loop += [(c, r1) for c in range(c1, c0, -1)] + [(c0, r) for r in range(r1, r0, -1)]
+    return loop
+
+
+def build_shell(mb):
+    rows, cols = len(SHELL_V), SHELL_COLS + 1
+    uu, vv = np.meshgrid(SHELL_U, SHELL_V)
     P, N = surf(uu.ravel(), vv.ravel(), 0.0)
     UV = rect_uv("skin", 0.15 + 0.7 * (uu.ravel() / (2 * math.pi * R) + 0.5),
                  0.15 + 0.7 * (1 - (vv.ravel() + V_MAX) / (2 * V_MAX)))
     W1 = {"FaceBase": 1.0}
-    mb.add("shell", P, N, UV, [W1] * len(P), grid_faces(rows, cols))
+    faces = []
+    for r in range(rows - 1):
+        for c in range(cols - 1):
+            if any(c0 <= c < c1 and r0 <= r < r1 for c0, c1, r0, r1 in BLOCKS.values()):
+                continue
+            faces.append([r * cols + c, r * cols + c + 1, (r + 1) * cols + c + 1, (r + 1) * cols + c])
+    mb.add("shell", P, N, UV, [W1] * len(P), faces)
     for sgn, row in ((-1, 0), (1, rows - 1)):
         ring = np.arange(row * cols, row * cols + cols)
         pp, pn = surf(np.array([0.0]), np.array([sgn * V_MAX]), 0.0)
@@ -424,6 +453,9 @@ def build_shell(mb):
         mb.add("shell", Pf, Nf, UVf, [W1] * len(Pf), [[c, c + 1, cols] for c in range(cols - 1)])
 
 
+# ---------------------------------------------------------------------------
+# Eye
+# ---------------------------------------------------------------------------
 def eye_uv_to_world(side, ex, ey, d):
     u = EYE_U * SIDES[side] + SIDES[side] * np.asarray(ex, float)
     v = EYE_V + np.asarray(ey, float)
@@ -445,200 +477,246 @@ def eye_dir3(side, d2, u):
     return v / np.linalg.norm(v, axis=-1, keepdims=True)
 
 
-def add_ridge(mb, part, side, path, width, prot, weights, rect, edge_base=None):
-    """Raised 3D strip (rounded triangular cross-section) along an eye-local path.
+def add_plate(mb, part, side, lower, upper, h_top, base_lower, base_upper, weights, rect):
+    """Flat plate of even thickness between two eye-local edge polylines of equal length.
 
-    width[i]: strip width; prot[i]: crest height above the local surface (surface_height).
-    edge_base None: strip centred on the path. Otherwise the strip starts at the path and
-    extends along its left normal, with a steep wall on the path side whose bottom height is
-    edge_base[i] (the lash ridge sits on the lid edge this way, its wall facing the eye).
-    Bases sink TUCK below the surface so the ridge grows out of it without a seam.
+    The top face sits at h_top over the skin everywhere (flat like a paper cut-out), and
+    straight walls drop from each edge to base_lower / base_upper; walls and top use separate
+    vertices so the edges stay crisp.
     """
-    path = np.asarray(path, float)
-    n = len(path)
-    width = np.broadcast_to(np.asarray(width, float), (n,))
-    prot = np.broadcast_to(np.asarray(prot, float), (n,))
-    nrm = left_normals(path)
-    if edge_base is None:
-        fr = np.array([0.0, 0.2, 0.5, 0.8, 1.0]) - 0.5
-    else:
-        fr = np.array([-0.03, 0.0, 0.25, 0.70, 1.0])
-    m = len(fr)
-    off = fr[None, :] * width[:, None]
-    P2 = path[:, None, :] + nrm[:, None, :] * off[..., None]
-    local = surface_height(P2[..., 0], P2[..., 1])
-    if edge_base is None:
-        base = local - TUCK
-        crest = local[:, 2] + prot
-        shape = np.array([0.0, 0.72, 1.0, 0.72, 0.0])
-        H = base + shape[None, :] * (crest[:, None] - base)
-    else:
-        eb = np.broadcast_to(np.asarray(edge_base, float), (n,))
-        crest = local[:, 2] + prot
-        # flat-topped slab: a sheer wall on the eye side, a level top, a short bevel on the outside
-        H = np.stack([eb, crest - 0.10 * prot, crest, local[:, 3] + 0.80 * (crest - local[:, 3]), local[:, 4] - TUCK], -1)
-    P, Nsurf = eye_uv_to_world(side, P2[..., 0].ravel(), P2[..., 1].ravel(), H.ravel())
-    P = P.reshape(n, m, 3)
-    Nsurf = Nsurf.reshape(n, m, 3)
-    # normals from the cross-section: across direction A and surface normal
-    u = SIDES[side] * (EYE_U + P2[..., 0])
-    A = eye_dir3(side, np.broadcast_to(nrm[:, None, :], (n, m, 2)), u)
-    da = np.gradient(off, axis=1)
-    dh = np.gradient(H, axis=1)
-    L = np.hypot(da, dh) + 1e-12
-    N = (-dh / L)[..., None] * A + (da / L)[..., None] * Nsurf
-    UV = np.broadcast_to(rect_uv(rect, 0.5, 0.5), (n * m, 2))
-    W = [w for w in weights for _ in range(m)]
-    mb.add(part, P.reshape(-1, 3), N.reshape(-1, 3), UV, W, grid_faces(n, m))
-    # end caps (separate vertices so they shade as flat ends)
+    lower, upper = np.asarray(lower, float), np.asarray(upper, float)
+    n = len(lower)
+    h_top = np.broadcast_to(np.asarray(h_top, float), (n,))
+    base_lower = np.broadcast_to(np.asarray(base_lower, float), (n,))
+    base_upper = np.broadcast_to(np.asarray(base_upper, float), (n,))
+    uv = rect_uv(rect, 0.5, 0.5)
+    W = list(weights)
+    quads = [[i, i + 1, n + i + 1, n + i] for i in range(n - 1)]
+    Pl, Nl = eye_uv_to_world(side, lower[:, 0], lower[:, 1], h_top)
+    Pu, Nu = eye_uv_to_world(side, upper[:, 0], upper[:, 1], h_top)
+    mb.add(part, np.concatenate([Pl, Pu]), np.concatenate([Nl, Nu]), uv, W + W, quads)
+    across = lower - upper
+    across /= np.maximum(np.linalg.norm(across, axis=1, keepdims=True), 1e-9)
+    ul = SIDES[side] * (EYE_U + lower[:, 0])
+    uu = SIDES[side] * (EYE_U + upper[:, 0])
+    Al = eye_dir3(side, across, ul)
+    Au = eye_dir3(side, -across, uu)
+    Plb, _ = eye_uv_to_world(side, lower[:, 0], lower[:, 1], base_lower)
+    Pub, _ = eye_uv_to_world(side, upper[:, 0], upper[:, 1], base_upper)
+    mb.add(part, np.concatenate([Pl, Plb]), np.concatenate([Al, Al]), uv, W + W, quads)
+    mb.add(part, np.concatenate([Pu, Pub]), np.concatenate([Au, Au]), uv, W + W, quads)
     for i, sgn in ((0, -1.0), (n - 1, 1.0)):
-        t2 = path[min(i + 1, n - 1)] - path[max(i - 1, 0)]
-        t3 = eye_dir3(side, t2 / np.linalg.norm(t2), u[i, 2])
-        mb.add(part, P[i], np.broadcast_to(sgn * t3, (m, 3)), UV[:m], [weights[i]] * m,
-               [[0, j, j + 1] for j in range(1, m - 1)])
+        mid = (lower[i] + upper[i]) / 2
+        nxt = (lower[min(i + 1, n - 1)] + upper[min(i + 1, n - 1)]) / 2 - (lower[max(i - 1, 0)] + upper[max(i - 1, 0)]) / 2
+        t3 = eye_dir3(side, nxt / max(np.linalg.norm(nxt), 1e-9), SIDES[side] * (EYE_U + mid[0]))
+        cap = np.stack([Pl[i], Pu[i], Pub[i], Plb[i]])
+        mb.add(part, cap, np.broadcast_to(sgn * t3, (4, 3)), uv, [W[i]] * 4, [[0, 1, 2, 3]])
+
+
+def strip(center, width):
+    """Lower/upper edges of a strip of the given width around a centreline."""
+    nrm = left_normals(center)
+    return center - nrm * (width / 2)[:, None], center + nrm * (width / 2)[:, None]
 
 
 def build_eye(mb, side):
+    sgn = SIDES[side]
     pts, arc, s, p = eye_contour()
     n = len(pts)
     cw = [contour_weights(arc[i], s[i], side) for i in range(n)]
     eye = {f"Eye_{side}": 1.0}
-    ang = np.arctan2(pts[:, 1] - RING_C[1], pts[:, 0] - RING_C[0])
-    rim = superellipse(RING_C, RING_R, RING_P, ang)
+    base = {"FaceBase": 1.0}
+    nout = closed_normals(pts)
 
-    # --- eye white: follows the opening and reaches SCLERA_K into the lid sheet, so its edge is
-    # always covered (painted: grey shadow under the upper lid, shaded inner corner)
-    edge = pts + (rim - pts) * SCLERA_K
-    c = np.array(SCLERA_C)
+    # --- lid patch: skin from the opening out to the block cut from the shell. Its inner edge
+    # follows the lid bones (blinks stretch it over the socket); its outer edge is the block's
+    # own grid vertices (FaceBase only), so it joins the shell without a seam.
+    centre = np.array([0.02, 0.0])
+    loop = block_loop(side)
+    lu = np.array([SHELL_U[c] for c, _ in loop])
+    lv = np.array([SHELL_V[r] for _, r in loop])
+    LB = np.stack([sgn * lu - EYE_U, lv - EYE_V], -1)            # block loop in eye-local coords
+
+    def cw_angle(q):
+        return np.mod(np.pi - np.arctan2(q[:, 1] - centre[1], q[:, 0] - centre[0]), 2 * np.pi)
+
+    def ray_hit(theta):
+        """Point of the block polygon in direction theta from the centre."""
+        d = np.array([math.cos(theta), math.sin(theta)])
+        best = None
+        for a, b in zip(LB, np.roll(LB, -1, axis=0)):
+            e = b - a
+            m = np.array([[d[0], -e[0]], [d[1], -e[1]]])
+            if abs(np.linalg.det(m)) < 1e-12:
+                continue
+            t, k = np.linalg.solve(m, a - centre)
+            if t > 0 and -1e-9 <= k <= 1 + 1e-9 and (best is None or t < best):
+                best = t
+        return centre + d * best
+
+    theta = np.arctan2(pts[:, 1] - centre[1], pts[:, 0] - centre[0])
+    proj = np.array([ray_hit(t) for t in theta])
+    ks = [0.0, 0.12, 0.28, 0.48, 0.70]
+    rows_p, rows_w = [], []
+    for k in ks:
+        rows_p.append(pts + (proj - pts) * k)
+        f = 1.0 - (1.0 - k) ** 1.6
+        rows_w.extend(mix_weights(cw[i], base, f) for i in range(n))
+    rp = np.concatenate(rows_p)
+    P, N = eye_uv_to_world(side, rp[:, 0], rp[:, 1], 0.0)
+    skin_uv = rect_uv("skin", 0.5, 0.5)
+    mb.add(f"lid_{side}", P, N, skin_uv, rows_w, grid_faces(len(ks), n, wrap=True))
+    # stitch the outer row (n points) to the block's grid vertices (exact shell positions)
+    A = rows_p[-1]
+    a_ang, b_ang = cw_angle(A), cw_angle(LB)
+    ia, ib = np.argsort(a_ang), np.argsort(b_ang)
+    PA, NA = eye_uv_to_world(side, A[ia, 0], A[ia, 1], 0.0)
+    PB, NB = surf(lu[ib], lv[ib], 0.0)
+    WA = [rows_w[(len(ks) - 1) * n + i] for i in ia]
+    mb.add(f"lid_{side}", np.concatenate([PA, PB]), np.concatenate([NA, NB]), skin_uv,
+           WA + [base] * len(ib), stitch(a_ang[ia], b_ang[ib]))
+
+    # --- socket: walls from the opening down to the eye white. Undercut slightly along the top
+    # and bottom (hidden from the front); at the inner corner the wall slopes in, so the inner
+    # corner reads as a deep, shaded recess.
+    off = 0.006 - 0.030 * smoothstep((-0.115 - pts[:, 0]) / 0.075)
+    depth = [0.0, 0.40, 1.0]
+    wall_p, wall_h, wall_w = [], [], []
+    for f in depth:
+        wall_p.append(pts + nout * (off * f ** 0.7)[:, None])
+        wall_h.append(np.full(n, -SOCKET_DEPTH * f))
+        wall_w.extend(mix_weights(cw[i], eye, f) for i in range(n))
+    wp = np.concatenate(wall_p)
+    P, _ = eye_uv_to_world(side, wp[:, 0], wp[:, 1], np.concatenate(wall_h))
+    P3 = P.reshape(len(depth), n, 3)
+    tang = np.roll(P3, -1, axis=1) - np.roll(P3, 1, axis=1)
+    down = np.gradient(P3, axis=0)
+    N = np.cross(tang, down)
+    uw = sgn * (EYE_U + wp.reshape(len(depth), n, 2)[..., 0])
+    inward = eye_dir3(side, -np.broadcast_to(nout, (len(depth), n, 2)), uw)
+    N = np.where((np.sum(N * inward, -1) < 0)[..., None], -N, N)
+    UV = np.concatenate([rect_uv("wall", p, f) for f in depth])
+    mb.add(f"socket_{side}", P, N.reshape(-1, 3), UV, wall_w, grid_faces(len(depth), n, wrap=True))
+
+    # --- eye white: the floor of the socket (its rim is the bottom row of the wall)
+    floor = wall_p[-1]
+    c = np.array(IRIS_C)
     rings = [0.30, 0.55, 0.75, 0.90, 1.0]
-    flat = np.concatenate([c[None]] + [c + (edge - c) * f for f in rings])
-    P, N = eye_uv_to_world(side, flat[:, 0], flat[:, 1], H_SCLERA)
+    flat = np.concatenate([c[None]] + [c + (floor - c) * f for f in rings])
+    P, N = eye_uv_to_world(side, flat[:, 0], flat[:, 1], -SOCKET_DEPTH)
     UV = rect_uv("sclera", 0.5 + 0.5 * flat[:, 0] / SCLERA_UV[0], 0.5 - 0.5 * flat[:, 1] / SCLERA_UV[1])
     mb.add(f"sclera_{side}", P, N, UV, [eye] * len(P), disc_faces(len(rings), n))
 
-    # --- iris: hugs the head surface; looking around rotates it about the head axis, so it
-    # never lifts off the eye white or pokes through the lid sheet
-    nseg = 72
+    # --- iris on the eye white: looking around rotates it about the head axis, so it slides
+    # across the eye white and under the socket walls
+    nseg = 48
     phi = np.linspace(0, 2 * np.pi, nseg, endpoint=False)
-    rings = [0.0, 0.18, 0.40, 0.62, 0.80, 0.92, 1.0]
+    rings = [0.0, 0.25, 0.55, 0.80, 0.93, 1.0]
     disc = np.concatenate([np.zeros((1, 2))] + [np.stack([np.cos(phi) * k, np.sin(phi) * k], -1) for k in rings[1:]])
-    P, N = iris_point(side, disc[:, 0] * IRIS_R[0], disc[:, 1] * IRIS_R[1], H_IRIS)
+    P, N = iris_point(side, disc[:, 0] * IRIS_R[0], disc[:, 1] * IRIS_R[1], -SOCKET_DEPTH + H_IRIS)
     UV = rect_uv("iris", 0.5 + 0.5 * 0.97 * disc[:, 0], 0.5 - 0.5 * 0.97 * disc[:, 1])
     mb.add(f"iris_{side}", P, N, UV, [{f"Iris_{side}": 1.0}] * len(P), disc_faces(len(rings) - 1, nseg))
 
-    # --- highlights (opaque white shapes just above the iris)
-    hp = np.linspace(0, 2 * np.pi, 32, endpoint=False)
+    # --- highlights: white shapes floating inside the socket, in front of the iris (parallax)
+    hp = np.linspace(0, 2 * np.pi, 24, endpoint=False)
     for (du, dv), (rx, ry), rot in HIGHLIGHTS:
         a = math.radians(rot)
         lx, ly = np.cos(hp) * rx, np.sin(hp) * ry
         x = np.concatenate([[0.0], lx * math.cos(a) - ly * math.sin(a)])
         y = np.concatenate([[0.0], lx * math.sin(a) + ly * math.cos(a)])
-        P, N = iris_point(side, du + x, dv + y, H_SHINE)
-        mb.add(f"shine_{side}", P, N, np.broadcast_to(rect_uv("highlight", 0.5, 0.5), (len(P), 2)),
-               [{f"Shine_{side}": 1.0}] * len(P), [[0, 1 + i, 1 + (i + 1) % 32] for i in range(32)])
+        P, N = iris_point(side, du + x, dv + y, -SOCKET_DEPTH + H_SHINE)
+        mb.add(f"shine_{side}", P, N, rect_uv("highlight", 0.5, 0.5), [{f"Shine_{side}": 1.0}] * len(P),
+               [[0, 1 + i, 1 + (i + 1) % 24] for i in range(24)])
 
-    # --- lid sheet: skin-coloured, barely above the iris layers; its inner edge is the eye
-    # opening and follows the lid bones (blinks stretch it over the eye)
-    ring_pts, ring_h, ring_w = [], [], []
-    for k in RING_K:
-        ring_pts.append(pts + (rim - pts) * k)
-        ring_h.append(np.full(n, float(ring_profile(k))))
-        f = (1.0 - k) ** 1.6
-        ring_w.extend(mix_weights(cw[i], eye, 1.0 - f) for i in range(n))
-    rp = np.concatenate(ring_pts)
-    P, N = eye_uv_to_world(side, rp[:, 0], rp[:, 1], np.concatenate(ring_h))
-    UV = rect_uv("skin", 0.5 + rp[:, 0] / 0.6, 0.5 - rp[:, 1] / 0.6)
-    mb.add(f"ring_{side}", P, N, UV, ring_w, grid_faces(len(RING_K), n, wrap=True))
+    # --- upper lash plate: overhangs the top of the opening, heaviest over the outer half, and
+    # runs out past the outer corner into a pointed wing
+    up = bezier(EYE_UPPER, 201)
+    su = np.linspace(0, 1, 201)
+    nup = left_normals(up)
+    sl = np.linspace(0.025, 0.975, 70)
+    il = np.round(sl * 200).astype(int)
+    ov = np.interp(sl, [0.025, 0.15, 0.5, 0.85, 0.975], [0.002, 0.008, 0.013, 0.012, 0.004])
+    lower_c = up[il] - nup[il] * ov[:, None]
+    wing_tip = np.array([0.280, -0.014])
+    t_low = (lower_c[-1] - lower_c[-3]) / np.linalg.norm(lower_c[-1] - lower_c[-3])
+    lower_w = bezier([lower_c[-1], lower_c[-1] + t_low * 0.012, wing_tip + np.array([-0.045, -0.002]), wing_tip], 22)[1:]
+    su_up = np.linspace(0.025, 0.80, 56)
+    iu = np.round(su_up * 200).astype(int)
+    wid = np.interp(su_up, [0.025, 0.10, 0.35, 0.60, 0.80], [0.002, 0.010, 0.021, 0.028, 0.031])
+    upper_c = up[iu] + nup[iu] * wid[:, None]
+    t_up = (upper_c[-1] - upper_c[-3]) / np.linalg.norm(upper_c[-1] - upper_c[-3])
+    upper_w = bezier([upper_c[-1], upper_c[-1] + t_up * 0.030, wing_tip + np.array([-0.040, 0.012]), wing_tip], 36)[1:]
+    lower_e = resample(np.concatenate([lower_c, lower_w]), 96)
+    upper_e = resample(np.concatenate([upper_c, upper_w]), 96)
+    upper_e[-1] = upper_e[-1] + np.array([0.0, 0.0012])        # a hair-thin tip, never a zero-area cap
+    poly = pts
+    base_l = np.where(inside_polygon(lower_e, poly), LASH_WALL_IN, PLATE_BASE)
+    # weights follow the lid along the contour part and blend into the eye along the wing
+    l1 = np.linalg.norm(np.diff(lower_c, axis=0), axis=1).sum()
+    l2 = np.linalg.norm(np.diff(np.concatenate([lower_c[-1:], lower_w]), axis=0), axis=1).sum()
+    s_of = np.interp(np.linspace(0, 1, 96), [0.0, l1 / (l1 + l2), 1.0], [0.025, 0.975, 1.0])
+    lw = [contour_weights(0, x, side) for x in s_of]
+    add_plate(mb, f"lash_{side}", side, lower_e, upper_e, H_LASH, base_l, PLATE_BASE, lw, "lash")
 
-    # --- wall: short skirt from the lid edge down to the eye white. Perpendicular to the skin,
-    # so it is emitted double-sided with explicit winding (separate vertices per side: mesh tools
-    # drop faces that reuse the same vertex set). Radial normals so it shades like the skin.
-    P1, N1 = eye_uv_to_world(side, pts[:, 0], pts[:, 1], H_RING)
-    P2, _ = eye_uv_to_world(side, pts[:, 0], pts[:, 1], H_WALL_BOTTOM)
-    UV = np.concatenate([rect_uv("wall", p, 0.0), rect_uv("wall", p, 1.0)])
-    faces = [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
-    for fl in (faces, [f[::-1] for f in faces]):
-        mb.add(f"wall_{side}", np.concatenate([P1, P2]), np.concatenate([N1, N1]), UV, cw + cw, fl, keep_winding=True)
+    # two flat lash spikes growing out of the plate's outer half, pointing up and out
+    for s_root, tip_off, w0 in ((0.62, np.array([0.030, 0.036]), 0.0105), (0.78, np.array([0.044, 0.026]), 0.0120)):
+        i = int(round(s_root * 200))
+        root = up[i] + nup[i] * (0.55 * np.interp(s_root, su_up, wid))
+        tip = root + tip_off
+        cen = bezier([root, root + nup[i] * 0.010, tip - tip_off * 0.35 + np.array([0.004, -0.002]), tip], 10)
+        lo_e, up_e = strip(cen, taper(10, [(0, w0), (1, 0.0008)]))
+        add_plate(mb, f"lash_{side}", side, lo_e, up_e, H_LASH, PLATE_BASE, PLATE_BASE,
+                  [contour_weights(0, s_root, side)] * 10, "lash")
 
-    # --- upper lash band: a thick black slab on the lid edge, thin at the inner corner and
-    # heaviest over the outer half, running past the outer corner as a long tapering wing
-    up = bezier(EYE_UPPER, 72)
-    su = np.linspace(0, 1, len(up))
-    o = np.array(EYE_OUTER)
-    t_end = (up[-1] - up[-3]) / np.linalg.norm(up[-1] - up[-3])
-    # lash band continues past the outer corner and tails off slightly downward
-    wing = bezier([o, o + t_end * 0.020, o + np.array([0.050, -0.010]), o + np.array([0.074, -0.018])], 16)[1:]
-    path = np.concatenate([up, wing])
-    tw = np.linspace(0, 1, len(wing) + 1)[1:]
-    width = np.concatenate([np.interp(su, [0.0, 0.04, 0.20, 0.50, 0.85, 1.0], [0.0060, 0.0110, 0.0190, 0.0245, 0.0270, 0.0260]),
-                            np.interp(tw, [0.0, 0.45, 1.0], [0.0260, 0.0150, 0.0012])])
-    prot = np.concatenate([np.interp(su, [0.0, 0.08, 0.5, 1.0], [0.0035, 0.0065, 0.0095, 0.0110]),
-                           np.interp(tw, [0.0, 0.6, 1.0], [0.0110, 0.0070, 0.0012])])
-    wing_local = surface_height(wing[:, 0], wing[:, 1]) - TUCK
-    edge_b = np.concatenate([np.full(len(up), LASH_BASE_IN), wing_local])
-    lw = [contour_weights(0, x, side) for x in su] + [eye] * len(wing)
-    add_ridge(mb, f"lash_{side}", side, path, width, prot, lw, "lash", edge_base=edge_b)
+    # --- lower lashes: a thin line along the outer half of the lower lid, a small spike at the
+    # outer corner, and two short tiles below (like the example's lower lash pieces)
+    lo = bezier(EYE_LOWER, 201)
+    nlo = left_normals(lo)
+    sl2 = np.linspace(0.04, 0.46, 30)
+    il2 = np.round(sl2 * 200).astype(int)
+    gap, wl = 0.0035, taper(30, [(0, 0.0012), (0.12, 0.0042), (0.75, 0.0036), (1, 0.0008)])
+    add_plate(mb, f"lashlow_{side}", side, lo[il2] + nlo[il2] * gap, lo[il2] + nlo[il2] * (gap + wl)[:, None],
+              H_LOWER, PLATE_BASE, PLATE_BASE, [contour_weights(1, x, side) for x in sl2], "lowerlash")
+    i = int(0.06 * 200)
+    root = lo[i] + nlo[i] * 0.004
+    cen = bezier([root, root + np.array([0.008, -0.004]), root + np.array([0.020, -0.012]), root + np.array([0.026, -0.020])], 8)
+    lo_e, up_e = strip(cen, taper(8, [(0, 0.0055), (1, 0.0008)]))
+    add_plate(mb, f"lashlow_{side}", side, lo_e, up_e, H_LOWER, PLATE_BASE, PLATE_BASE, [contour_weights(1, 0.06, side)] * 8,
+              "lowerlash")
+    for s_t, length in ((0.38, 0.030), (0.62, 0.024)):
+        i = int(round(s_t * 200))
+        t2 = lo[min(i + 3, 200)] - lo[max(i - 3, 0)]
+        t2 /= np.linalg.norm(t2)
+        mid = lo[i] + nlo[i] * 0.020
+        cen = np.stack([mid + t2 * (length * (k - 0.5)) for k in np.linspace(0, 1, 8)])
+        lo_e, up_e = strip(cen, taper(8, [(0, 0.0050), (0.2, 0.0072), (0.8, 0.0072), (1, 0.0050)]))
+        add_plate(mb, f"lashlow_{side}", side, lo_e, up_e, H_LOWER, PLATE_BASE, PLATE_BASE,
+                  [contour_weights(1, s_t, side)] * 8, "lowerlash")
 
-    # inner corner: the lash line hooks down past the corner, and a fine line traces the lower
-    # edge of the corner, so the big inner corner reads as deep-set
-    i0 = up[2]
-    hook = bezier([i0, i0 + np.array([-0.007, -0.002]), i0 + np.array([-0.014, -0.010]), i0 + np.array([-0.017, -0.022])], 10)
-    add_ridge(mb, f"lash_{side}", side, hook, taper(10, [(0, 0.0070), (1, 0.0010)]), taper(10, [(0, 0.0045), (1, 0.0012)]),
-              [contour_weights(0, su[2], side)] * 10, "lash")
-    lod = bezier(EYE_LOWER, 201)
-    nlo = left_normals(lod)
-    ss = np.linspace(0.86, 0.995, 10)
-    idx = np.round(ss * 200).astype(int)
-    add_ridge(mb, f"lashlow_{side}", side, lod[idx] + nlo[idx] * 0.0020, taper(10, [(0, 0.0008), (0.5, 0.0030), (1, 0.0034)]),
-              taper(10, [(0, 0.0010), (0.5, 0.0028), (1, 0.0032)]), [contour_weights(1, x, side) for x in ss], "lash")
-
-    # --- pale line hugging the top of the lash band's outer half and the start of the wing
-    # (the light strokes above the eyes in the references)
-    npath = left_normals(path)
-    i0, i1 = int(0.50 * (len(up) - 1)), len(up) + len(wing) // 2
-    pale = path[i0:i1] + npath[i0:i1] * (width[i0:i1] + 0.0050)[:, None]
-    k = len(pale)
-    upd = bezier(EYE_UPPER, 201)
-    # follows the lash band exactly, so it travels with the lid when the eye closes
-    pale_w = [contour_weights(0, x, side) for x in su[i0:]]
-    pale_w += [eye] * (k - len(pale_w))
-    add_ridge(mb, f"lidline_{side}", side, pale, taper(k, [(0, 0.0008), (0.2, 0.0042), (0.75, 0.0040), (1, 0.0008)]),
-              taper(k, [(0, 0.0010), (0.2, 0.0028), (0.8, 0.0026), (1, 0.0010)]), pale_w, "lidline")
-
-    # --- crease: a thin dark line set further back above the lid
-    cs = np.linspace(0.28, 0.80, 30)
-    idx = np.round(cs * 200).astype(int)
-    gap = np.interp(cs, [0.28, 0.55, 0.80], [0.040, 0.046, 0.044])
-    crease = upd[idx] + left_normals(upd)[idx] * gap[:, None]
-    nc = len(crease)
-    add_ridge(mb, f"crease_{side}", side, crease, taper(nc, [(0.0, 0.0008), (0.2, 0.0034), (0.8, 0.0030), (1.0, 0.0008)]),
-              taper(nc, [(0, 0.0010), (0.2, 0.0028), (0.8, 0.0026), (1, 0.0010)]),
-              [mix_weights(contour_weights(0, x, side), eye, 0.62) for x in cs], "crease")
-
-    # --- lower lashes: a fine line along the outer half of the lower lid and one short dash
-    for s0, s1, g, wmax, pmax in ((0.02, 0.52, 0.0040, 0.0032, 0.0026), (0.60, 0.72, 0.0100, 0.0028, 0.0022)):
-        ss = np.linspace(s0, s1, max(6, int((s1 - s0) * 60)))
-        idx = np.round(ss * 200).astype(int)
-        line = lod[idx] + nlo[idx] * g
-        k = len(line)
-        add_ridge(mb, f"lashlow_{side}", side, line, taper(k, [(0, 0.0010), (0.15, wmax), (0.8, wmax * 0.8), (1, 0.0008)]),
-                  taper(k, [(0, 0.0010), (0.15, pmax), (0.85, pmax * 0.85), (1, 0.0010)]),
-                  [contour_weights(1, x, side) for x in ss], "lowerlash")
+    # --- pale lid line hugging the top of the lash plate's outer half, and a thin dark crease
+    # set further back
+    sp = np.linspace(0.40, 0.80, 26)
+    ip = np.round(sp * 200).astype(int)
+    gp = np.interp(sp, su_up, wid) + 0.0060
+    wp_ = taper(26, [(0, 0.0008), (0.2, 0.0040), (0.8, 0.0040), (1, 0.0008)])
+    add_plate(mb, f"lidline_{side}", side, up[ip] + nup[ip] * gp[:, None], up[ip] + nup[ip] * (gp + wp_)[:, None],
+              H_LINE, PLATE_BASE, PLATE_BASE, [contour_weights(0, x, side) for x in sp], "lidline")
+    sc = np.linspace(0.24, 0.84, 34)
+    ic = np.round(sc * 200).astype(int)
+    gc = np.interp(sc, [0.24, 0.55, 0.84], [0.048, 0.056, 0.050])
+    wc = taper(34, [(0, 0.0008), (0.2, 0.0034), (0.8, 0.0032), (1, 0.0008)])
+    add_plate(mb, f"crease_{side}", side, up[ic] + nup[ic] * gc[:, None], up[ic] + nup[ic] * (gc + wc)[:, None],
+              H_LINE, PLATE_BASE, PLATE_BASE, [mix_weights(contour_weights(0, x, side), eye, 0.62) for x in sc], "crease")
 
 
 def build_brow(mb, side):
-    cen = bezier(BROW, 45)
+    cen = bezier(BROW, 46)
     s = np.linspace(0, 1, len(cen))
-    w = np.interp(s, [0.0, 0.07, 0.45, 0.82, 1.0], [0.0200, 0.0225, 0.0185, 0.0110, 0.0016])
-    prot = np.interp(s, [0.0, 0.1, 0.8, 1.0], [0.0055, 0.0065, 0.0055, 0.0015])
+    w = np.interp(s, [0.0, 0.06, 0.45, 0.82, 1.0], [0.0230, 0.0250, 0.0200, 0.0110, 0.0012])
+    lo_e, up_e = strip(cen, w)
+    lo_e[0] = lo_e[0] + (cen[2] - cen[0]) * 1.2                     # angled inner cut
     bw = [sided(ctrl_weights(x, BROW_CTRL), side) for x in s]
-    add_ridge(mb, f"brow_{side}", side, cen, w, prot, bw, "brow")
-    # a short separate stroke just inside the inner end
-    a = np.array(BROW[0])
-    tick = bezier([a + np.array([-0.027, -0.006]), a + np.array([-0.023, 0.001]), a + np.array([-0.019, 0.008]),
-                   a + np.array([-0.015, 0.014])], 8)
-    add_ridge(mb, f"brow_{side}", side, tick, taper(8, [(0, 0.0015), (0.5, 0.0060), (1, 0.0015)]),
-              taper(8, [(0, 0.0015), (0.5, 0.0040), (1, 0.0012)]), [sided({"BrowInner": 1.0}, side)] * 8, "brow")
+    add_plate(mb, f"brow_{side}", side, lo_e, up_e, H_BROW, PLATE_BASE, PLATE_BASE, bw, "brow")
 
 
 def build_blush(mb, side):
@@ -660,7 +738,7 @@ def mouth_patch(name, k):
     unmirrored from the front. Only the default mouth rests on the skin; the others are stored
     MOUTH_HIDE inside the head and slide straight out along the mouth bone's normal.
     """
-    xs, ys = np.linspace(-1, 1, 11), np.linspace(-0.5, 0.5, 7)
+    xs, ys = np.linspace(-1, 1, 9), np.linspace(-0.5, 0.5, 5)
     gx, gy = np.meshgrid(xs, ys)
     u = -gx.ravel() * MOUTH_UNIT
     v = MOUTH_V + gy.ravel() * MOUTH_UNIT

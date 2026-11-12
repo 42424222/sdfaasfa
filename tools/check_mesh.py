@@ -50,4 +50,21 @@ areas = np.array(areas)
 print(f"smallest face area {areas.min():.3e}  faces < 1e-9: {(areas < 1e-9).sum()}")
 if (areas < 1e-9).any():
     errors.append("zero-area faces present")
+
+# the skin surface (head shell + lid patches + sockets + eye whites) must be watertight:
+# every edge shared by exactly two faces once coincident vertices are merged
+skin = [i for i, part in enumerate(m["part"]) if part.split("_")[0] in ("shell", "lid", "socket", "sclera")]
+key = np.round(P / 1e-6).astype(np.int64)
+_, vid = np.unique(key, axis=0, return_inverse=True)
+vid = vid.ravel()
+edge_use = collections.Counter()
+for i in skin:
+    f = [vid[k] for k in F[i]]
+    for a, b in zip(f, f[1:] + f[:1]):
+        edge_use[(min(a, b), max(a, b))] += 1
+open_edges = sum(1 for n in edge_use.values() if n == 1)
+over_edges = sum(1 for n in edge_use.values() if n > 2)
+print(f"skin surface: {len(skin)} faces, open edges {open_edges}, edges shared by >2 faces {over_edges}")
+if open_edges or over_edges:
+    errors.append(f"skin surface not watertight ({open_edges} open, {over_edges} over-shared edges)")
 print("ERRORS:" if errors else "OK", errors)

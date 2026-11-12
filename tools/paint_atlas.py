@@ -34,6 +34,7 @@ PAL = {
     "iris_top": "#2c1507", "iris_upper": "#55290e", "iris_mid": "#8a4718", "iris_low": "#c27b2e",
     "iris_bottom": "#e7b05a", "iris_ring": "#1b0d05", "pupil": "#120703", "iris_glow": "#f5cf86",
     "sclera": "#ffffff", "sclera_shade": "#d4d6e6", "sclera_deep": "#b4b8cf", "sclera_corner": "#c7c0cc",
+    "socket": "#6b3a33",
     # raised lines
     "lash": "#111012", "brow": "#151214", "crease": "#1b1517", "lidline": "#fff8f4", "lowerlash": "#2a2124",
     "highlight": "#ffffff",
@@ -254,10 +255,15 @@ def paint_swatches():
     for name, r in (("lash", 0.42), ("brow", 0.55), ("crease", 0.55), ("lidline", 0.45), ("lowerlash", 0.55), ("highlight", 0.2)):
         put(name, col(name), 1.0, r)
     put("skin", np.array(DEFAULT_SKIN) / 255.0, 0.0, SKIN_ROUGH)
+    # socket walls: x = position around the opening (upper arc inner->outer, then lower arc),
+    # y = depth (0 at the rim, 1 at the eye white). Black under the lash plate, shadowed skin
+    # (a dark overlay over the skin colour) elsewhere, getting darker deeper in
     sl, FX, FY = region("wall")
     p = np.clip(FX, 0, 1)
-    a = S(p / 0.035) * S((0.5 - p) / 0.035) * (p <= 0.5)
-    put("wall", col("lash"), a, 0.5)
+    d = np.clip(FY, 0, 1)
+    lash = S((p - 0.03) / 0.05) * S((0.43 - p) / 0.05)
+    rgb = lerp(np.broadcast_to(col("socket"), p.shape + (3,)), col("lash"), lash)
+    put("wall", rgb, np.maximum(0.32 + 0.38 * d, lash), 0.6)
 
 
 def paint_blush():
