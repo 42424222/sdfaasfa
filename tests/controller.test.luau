@@ -115,6 +115,30 @@ local function actualWorld(world, inst, name)
 	return rot(world[name]):VectorToWorldSpace(inst[name].Transform.Position)
 end
 
+-- Look bones (irises) pivot at the head centre and turn about the face's up axis.
+local LOOK = Presets.LookBones
+local world, inst -- the rig under test (assigned below)
+
+-- world-space motion produced by a bone's own Transform
+local function actualMotion(name)
+	local W = world[name]
+	return W * inst[name].Transform * W:Inverse()
+end
+
+local function expectedLookMotion(name, off)
+	local side = if string.sub(name, -2) == "_L" then -1 else 1
+	local angle = -side * off.X / Presets.IrisRadius
+	local up = rot(P0 * Q):VectorToWorldSpace(Vector3.new(0, 1, 0))
+	local pivot = world[name].Position
+	return CFrame.new(up * off.Y) * CFrame.new(pivot) * CFrame.fromAxisAngle(up, angle) * CFrame.new(-pivot)
+end
+
+-- a point on the eye surface, where the iris actually is
+local function eyePoint(name)
+	local sx = if string.sub(name, -2) == "_L" then -1 else 1
+	return (P0 * Q):PointToWorldSpace(Vector3.new(0.235 * sx, -0.09, -0.6))
+end
+
 local function step(seconds)
 	local n = math.max(1, math.floor(seconds * 60))
 	for _ = 1, n do
@@ -126,7 +150,8 @@ local function step(seconds)
 end
 
 ------------------------------------------------------------------ controller math
-local template, part, world, inst = buildTemplate()
+local template, part
+template, part, world, inst = buildTemplate()
 local ctrl = AnimeFace.new(template, { AutoBlink = false, AutoLook = false })
 check(math.abs(ctrl.Scale - 1) < 1e-4, "scale should be 1, got " .. ctrl.Scale)
 
@@ -139,7 +164,13 @@ for _, name in Presets.ExpressionOrder do
 		for _, b in Presets.Bones do
 			local o = offsets[b.Name]
 			local off = if o then Vector3.new(o[1], o[2], o[3]) else Vector3.new(0, 0, 0)
-			local err = (actualWorld(world, inst, b.Name) - expectedWorld(b.Name, off)).Magnitude
+			local err
+			if LOOK[b.Name] then
+				local p = eyePoint(b.Name)
+				err = (actualMotion(b.Name):PointToWorldSpace(p) - expectedLookMotion(b.Name, off):PointToWorldSpace(p)).Magnitude
+			else
+				err = (actualWorld(world, inst, b.Name) - expectedWorld(b.Name, off)).Magnitude
+			end
 			maxErr = math.max(maxErr, err)
 			-- float32 CFrame maths ~10 studs from the origin: 5e-5 studs is noise, offsets are >= 2e-3
 			check(err < 5e-5, string.format("%s/%s displacement error %.2e", name, b.Name, err))
@@ -176,8 +207,13 @@ ctrl:SetLook(1, 0)
 step(1)
 local faceRight = rot(P0 * Q):VectorToWorldSpace(Vector3.new(1, 0, 0))
 for _, n in { "Iris_L", "Iris_R" } do
-	local d = actualWorld(world, inst, n)
+	local p = eyePoint(n)
+	local d = actualMotion(n):PointToWorldSpace(p) - p
 	check(d:Dot(faceRight) > 0.035, n .. " should move toward the character's right")
+	-- turning keeps the iris on the head surface: its distance from the pivot is unchanged
+	local pivot = world[n].Position
+	local drift = math.abs((actualMotion(n):PointToWorldSpace(p) - pivot).Magnitude - (p - pivot).Magnitude)
+	check(drift < 1e-5, n .. " should stay on the head surface while looking sideways")
 end
 ctrl:SetLook(nil)
 
@@ -260,7 +296,7 @@ check(#shownMouths() == 1 and mouthShown("Smile"), "the mouth should return to t
 ctrl:SetEnabled(false)
 local allZero = true
 for _, b in inst do
-	if b.Transform.Position.Magnitude > 1e-9 then
+	if b.Transform.Position.Magnitude > 1e-9 or (b.Transform.LookVector - Vector3.new(0, 0, -1)).Magnitude > 1e-6 then
 		allZero = false
 	end
 end

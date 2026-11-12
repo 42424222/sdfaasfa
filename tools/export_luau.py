@@ -40,6 +40,10 @@ def main():
         f"\tLookRange = {{ X = {num(fp.LOOK_RANGE[0])}, Y = {num(fp.LOOK_RANGE[1])} }},",
         f"\tDesignEyeDistance = {num(eye_dist, 6)},",
         f"\tHeadRadius = {num(fd.R, 6)},",
+        f"\tIrisRadius = {num(fd.IRIS_RADIUS, 6)},",
+        "\t-- Look bones pivot at the head centre: X = travel along the surface (rotation about the",
+        "\t-- head's up axis by X / IrisRadius), Y = straight up/down.",
+        "\tLookBones = { " + ", ".join(f"{n} = true" for n in fd.LOOK_BONES) + " },",
         f'\tDefaultMouth = "{fd.DEFAULT_MOUTH}",',
         "\tBones = {",
     ]

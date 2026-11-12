@@ -410,6 +410,7 @@ function AnimeFace.new(face, options)
 			T = Vector3.new(math.cos(a), 0, math.sin(a)),
 			N = Vector3.new(math.sin(a), 0, -math.cos(a)),
 			Side = if info.Side ~= 0 then info.Side else 1,
+			Look = Presets.LookBones[name] == true,
 			Last = nil,
 		}
 	end
@@ -695,6 +696,14 @@ function AnimeFace:_write(m, off)
 		return
 	end
 	m.Last = off
+	if m.Look then
+		-- irises pivot at the head centre: turning about the head's up axis slides them along the
+		-- curved surface (so they never lift off the eye white); Y moves them straight up/down
+		local angle = -m.Side * off.X / Presets.IrisRadius
+		local t = m.Conv:VectorToWorldSpace(UP * (off.Y * self.Scale))
+		m.Bone.Transform = CFrame.new(t) * CFrame.fromAxisAngle(m.Conv:VectorToWorldSpace(UP), angle)
+		return
+	end
 	local d = (m.T * (off.X * m.Side) + UP * off.Y + m.N * off.Z) * self.Scale
 	m.Bone.Transform = CFrame.new(m.Conv:VectorToWorldSpace(d))
 end

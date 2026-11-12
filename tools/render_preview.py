@@ -87,14 +87,35 @@ def setup_material():
     sep = nt.nodes.new("ShaderNodeSeparateXYZ")
     nt.links.new(normal, sep.inputs[0])
     sky, ground = 0.50, 0.30
+    key_dir = Vector((-0.45, -0.75, 0.55)).normalized()
     ambient = math('ADD', math('MULTIPLY', sep.outputs["Z"], (sky - ground) / 2), (sky + ground) / 2)
-    light = math('ADD', math('ADD', ambient, lambert((-0.45, -0.75, 0.55), 0.62)), lambert((0.65, -0.55, 0.05), 0.14))
+    light = math('ADD', math('ADD', ambient, lambert(key_dir, 0.62)), lambert((0.65, -0.55, 0.05), 0.14))
     scale = nt.nodes.new("ShaderNodeVectorMath")
     scale.operation = 'SCALE'
     nt.links.new(mix.outputs["Result"], scale.inputs[0])
     nt.links.new(light, scale.inputs["Scale"])
+    # Blinn-Phong highlight from the key light, stronger on smooth surfaces (roughness map),
+    # so the glossy black lash ridges read as 3D like they do under Roblox lighting
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    half = nt.nodes.new("ShaderNodeVectorMath")
+    half.operation = 'ADD'
+    half.inputs[1].default_value = tuple(key_dir)
+    nt.links.new(geo.outputs["Incoming"], half.inputs[0])
+    hn = nt.nodes.new("ShaderNodeVectorMath")
+    hn.operation = 'NORMALIZE'
+    nt.links.new(half.outputs["Vector"], hn.inputs[0])
+    ndh = nt.nodes.new("ShaderNodeVectorMath")
+    ndh.operation = 'DOT_PRODUCT'
+    nt.links.new(normal, ndh.inputs[0])
+    nt.links.new(hn.outputs["Vector"], ndh.inputs[1])
+    gloss = math('POWER', math('SUBTRACT', 1.0, nt.nodes["Roughness"].outputs["Color"]), 2.0)
+    spec = math('MULTIPLY', math('MULTIPLY', math('POWER', math('MAXIMUM', ndh.outputs["Value"], 0.0), 40.0), gloss), 0.9)
+    lit = nt.nodes.new("ShaderNodeVectorMath")
+    lit.operation = 'ADD'
+    nt.links.new(scale.outputs[0], lit.inputs[0])
+    nt.links.new(spec, lit.inputs[1])
     em = nt.nodes.new("ShaderNodeEmission")
-    nt.links.new(scale.outputs[0], em.inputs["Color"])
+    nt.links.new(lit.outputs["Vector"], em.inputs["Color"])
     nt.links.new(em.outputs["Emission"], nt.nodes["Material Output"].inputs["Surface"])
 
 
@@ -149,6 +170,9 @@ VIEWS = {
     "side": ((-6.0, -0.9, -0.05), (0.0, 0.0, -0.05), 1.05),
     "face_close": ((0.0, -6.0, -0.10), (0.0, 0.0, -0.10), 0.62),
     "face_mid": ((0.0, -6.0, -0.13), (0.0, 0.0, -0.13), 0.74),
+    # the character's right eye (head +X = Blender -X), straight on and from a three-quarter angle
+    "eye_front": ((-0.235, -6.0, -0.075), (-0.235, 0.0, -0.075), 0.40),
+    "eye_34": ((-1.05, -1.25, 0.30), (-0.26, -0.55, -0.085), None),
 }
 
 # Short demo clip at 12 fps: (expression, mouth override or None, frames). Talking flips 2D mouths.
@@ -158,7 +182,7 @@ ANIM = [
     ("Smile", "OpenSmall", 2), ("Smile", "Open", 2), ("Smile", None, 1), ("Smile", "O", 2), ("Smile", "Teeth", 2),
     ("Smile", None, 1), ("Smile", "Open", 2), ("Smile", "OpenSmall", 2), ("Smile", None, 6),
     ("Happy", None, 10), ("Laugh", None, 10), ("Surprised", None, 8), ("Shocked", None, 8), ("Angry", None, 10),
-    ("Sad", None, 10), ("Smug", None, 10), ("Shy", None, 10), ("Wink", None, 10), ("Neutral", None, 6),
+    ("Sad", None, 10), ("Smug", None, 10), ("Shy", None, 10), ("Playful", None, 10), ("Wink", None, 10), ("Neutral", None, 6),
 ]
 
 
@@ -192,7 +216,7 @@ def main():
 
     if mode in ("look", "quick"):
         pose(names[0] if names else "Neutral")
-        views = ("front", "three_quarter", "side", "face_close") if mode == "look" else ("face_close", "three_quarter")
+        views = ("front", "three_quarter", "side", "face_close", "eye_front", "eye_34") if mode == "look" else ("face_close", "eye_front", "eye_34")
         for view in views:
             render(scene, cam, view, os.path.join(out, f"look_{view}.png"))
     elif mode == "sheet":

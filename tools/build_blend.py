@@ -33,6 +33,15 @@ def to_blender(p):
     return np.stack([-p[..., 0], p[..., 2], p[..., 1]], -1)
 
 
+# The same mapping as a matrix (a proper rotation, det +1, so rotations keep their sense).
+HEAD_TO_BLENDER = Matrix(((-1.0, 0.0, 0.0, 0.0), (0.0, 0.0, 1.0, 0.0), (0.0, 1.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)))
+
+
+def motion_to_blender(M):
+    """Head-space 4x4 bone motion (face_design.bone_motion) -> Blender world space."""
+    return HEAD_TO_BLENDER @ Matrix([list(r) for r in M]) @ HEAD_TO_BLENDER.inverted()
+
+
 def clear_scene():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
@@ -115,14 +124,15 @@ def build_armature(model):
 
 
 def pose_offsets(arm, offsets, bones_by_name):
-    """Apply face-space offsets (see face_design.local_to_head) as pose-bone translations."""
+    """Apply face-space offsets (see face_design.bone_motion) as pose-bone transforms."""
     for pb in arm.pose.bones:
-        pb.location = (0.0, 0.0, 0.0)
-        pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+        pb.matrix_basis = Matrix.Identity(4)
+    A = arm.matrix_world
     for name, val in offsets.items():
         pb = arm.pose.bones[name]
-        d = Vector(to_blender(fd.local_to_head(bones_by_name[name], val)))
-        pb.location = pb.bone.matrix_local.to_3x3().inverted() @ d
+        Mw = motion_to_blender(fd.bone_motion(bones_by_name[name], val))
+        B = pb.bone.matrix_local
+        pb.matrix_basis = B.inverted() @ A.inverted() @ Mw @ A @ B
 
 
 def add_expression_action(arm, model):
@@ -140,6 +150,7 @@ def add_expression_action(arm, model):
         pose_offsets(arm, fd.expand_pose(fp.PRESETS[name]), bones_by_name)
         for pb in arm.pose.bones:
             pb.keyframe_insert("location", frame=frame, group=pb.name)
+            pb.keyframe_insert("rotation_quaternion", frame=frame, group=pb.name)
         scene.timeline_markers.new(name, frame=frame)
     scene.frame_start, scene.frame_end = 0, (len(names) - 1) * 10
     for fc in getattr(action, "fcurves", []):
@@ -157,7 +168,7 @@ def export(arm, mesh_obj):
     if arm.animation_data:
         arm.animation_data.action = None
     for pb in arm.pose.bones:
-        pb.location = (0.0, 0.0, 0.0)
+        pb.matrix_basis = Matrix.Identity(4)
     bpy.ops.export_scene.fbx(
         filepath=os.path.join(ASSETS, "AnimeFace.fbx"),
         use_selection=True,

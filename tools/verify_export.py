@@ -10,7 +10,7 @@ import sys
 
 import bpy
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from mathutils.kdtree import KDTree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +20,7 @@ import face_design as fd  # noqa: E402
 import face_presets as fp  # noqa: E402
 import build_blend as bb  # noqa: E402
 
-POSES = ["Neutral", "Blink", "Laugh", "Angry", "Shy", "LookLeft"]
+POSES = ["Neutral", "Blink", "Laugh", "Angry", "Shy", "LookLeft", "LookUp", "Smug"]
 MODEL = fd.build()
 BONES = {b["name"]: b for b in MODEL["bones"]}
 problems = []
@@ -46,20 +46,18 @@ def evaluated_world_verts(mesh_obj):
 
 
 def apply_pose(arm, offsets):
-    """Pose using world-space displacements so it works whatever the imported bone axes are."""
-    inv = arm.matrix_world.inverted().to_3x3()
+    """Pose from head-space bone motions so it works whatever the imported bone axes are."""
     for pb in arm.pose.bones:
-        pb.location = (0, 0, 0)
-        pb.rotation_quaternion = (1, 0, 0, 0)
-        pb.rotation_euler = (0, 0, 0)
+        pb.matrix_basis = Matrix.Identity(4)
+    A = arm.matrix_world
     for name, val in offsets.items():
         pb = arm.pose.bones.get(name)
         if pb is None:
             problems.append(f"missing bone {name}")
             continue
-        d_world = Vector(bb.to_blender(fd.local_to_head(BONES[name], val)))
-        d_arm = inv @ d_world
-        pb.location = pb.bone.matrix_local.to_3x3().inverted() @ d_arm
+        Mw = bb.motion_to_blender(fd.bone_motion(BONES[name], val))
+        B = pb.bone.matrix_local
+        pb.matrix_basis = B.inverted() @ A.inverted() @ Mw @ A @ B
     bpy.context.view_layer.update()
 
 

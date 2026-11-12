@@ -1,7 +1,8 @@
 """
 Paint the AnimeFace texture atlas (run with system python3: needs numpy + Pillow).
 
-Cel-shaded style: flat colours with hard, anti-aliased edges and bold dark linework.
+Anime-style colour work: smooth gradients on the eyes, crisp anti-aliased edges, and 2D mouth
+drawings with thick dark strokes, near-black insides, a pink tongue and white teeth.
 
 Outputs (in ../assets/textures):
   AnimeFace_Color.png         RGBA, for a SurfaceAppearance with AlphaMode = Overlay.
@@ -26,18 +27,20 @@ SIZE = fd.ATLAS * SS
 OUT = os.path.join(HERE, "..", "assets", "textures")
 DOCS = os.path.join(HERE, "..", "docs", "images")
 DEFAULT_SKIN = (255, 224, 199)
+SKIN_ROUGH = 0.85
 
 PAL = {
-    # eyes (an original amber palette)
-    "iris_dark": "#4f2a10", "iris_middark": "#8a4c1a", "iris_mid": "#b9752b", "iris_light": "#efb75c",
-    "iris_rim": "#27150a", "pupil": "#160c06",
-    "sclera": "#ffffff", "sclera_shade": "#d2d7e6",
-    "lash": "#1b1214", "brow": "#261b1e", "crease": "#c08573", "highlight": "#ffffff",
-    "nose": "#b87262", "noseshade": "#ecc0aa",
+    # eyes: warm brown iris
+    "iris_top": "#2c1507", "iris_upper": "#55290e", "iris_mid": "#8a4718", "iris_low": "#c27b2e",
+    "iris_bottom": "#e7b05a", "iris_ring": "#1b0d05", "pupil": "#120703", "iris_glow": "#f5cf86",
+    "sclera": "#ffffff", "sclera_shade": "#c6cbdc", "sclera_corner": "#e2e5ef",
+    # raised lines
+    "lash": "#111012", "brow": "#151214", "crease": "#1b1517", "lidline": "#fff8f4", "lowerlash": "#2a2124",
+    "highlight": "#ffffff",
     "blush": "#ff7f90", "blush_line": "#f0546c",
     # mouths
-    "line": "#1f1215", "inner": "#4d1622", "tongue": "#e27a8a", "teeth": "#fbf8f8",
-    "teeth_line": "#c4b4b9", "teeth_gap": "#6f565b",
+    "line": "#2a1714", "inner_top": "#1b0c0a", "inner_bottom": "#3a1916", "tongue": "#e47c84",
+    "tongue_light": "#f4a7ab", "teeth": "#fbf7f7", "teeth_shade": "#e2d6d8", "teeth_line": "#9b8489",
 }
 
 
@@ -46,14 +49,22 @@ def hexc(h):
     return np.array([int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)])
 
 
+def col(name):
+    return hexc(PAL.get(name, name))
+
+
 def lerp(a, b, t):
     t = np.asarray(t)[..., None]
     return a * (1 - t) + b * t
 
 
+def S(x):
+    return fd.smoothstep(x)
+
+
 canvas = np.zeros((SIZE, SIZE, 4))
 canvas[..., :3] = np.array(DEFAULT_SKIN) / 255.0
-rough = np.full((SIZE, SIZE), 0.85)
+rough = np.full((SIZE, SIZE), SKIN_ROUGH)
 
 
 def region(name):
@@ -67,12 +78,8 @@ def region(name):
 
 
 def inner_px(name):
-    """Inner width of a rect in canvas pixels."""
     x0, _, x1, _ = fd.RECT[name]
     return (x1 - x0 - 2 * fd.UV_MARGIN) * SS
-
-
-SKIN_ROUGH = 0.85
 
 
 def put(name, rgb, alpha, r=None):
@@ -88,7 +95,6 @@ class Surface:
     """Premultiplied RGBA drawing surface over one atlas rect, in its own units (y up)."""
 
     def __init__(self, name, xr, yr):
-        self.name = name
         self.sl, FX, FY = region(name)
         self.X = xr[0] + FX * (xr[1] - xr[0])
         self.Y = yr[1] - FY * (yr[1] - yr[0])
@@ -97,12 +103,15 @@ class Surface:
         self.A = np.zeros(self.X.shape)
 
     def cover(self, sd):
-        """Anti-aliased coverage from a signed distance (negative inside)."""
         return np.clip(0.5 - sd / self.px, 0.0, 1.0)
 
     def over(self, color, cov):
-        c = hexc(PAL.get(color, color))
-        self.C = c * cov[..., None] + self.C * (1 - cov[..., None])
+        c = col(color) if isinstance(color, str) else color
+        cov = np.clip(cov, 0, 1)
+        if np.ndim(c) == 1:
+            self.C = c * cov[..., None] + self.C * (1 - cov[..., None])
+        else:
+            self.C = c * cov[..., None] + self.C * (1 - cov[..., None])
         self.A = cov + self.A * (1 - cov)
 
     def stroke_sd(self, pts, widths):
@@ -144,10 +153,6 @@ class Surface:
         self.over(color, cov if clip is None else cov * clip)
         return cov
 
-    def outline(self, poly, width, color):
-        poly = np.asarray(poly, float)
-        self.stroke(np.concatenate([poly, poly[:1]]), width, color)
-
     def commit(self, r=0.6):
         rgb = np.where(self.A[..., None] > 1e-6, self.C / np.maximum(self.A[..., None], 1e-6), np.array(DEFAULT_SKIN) / 255.0)
         canvas[self.sl][..., :3] = rgb
@@ -181,142 +186,214 @@ def shape(top, bottom):
     return np.concatenate([top, bottom[1:-1]])
 
 
+def ramp(t, stops):
+    t = np.clip(t, 0, 1)
+    pos = np.array([p for p, _ in stops])
+    cs = np.array([col(c) for _, c in stops])
+    return np.stack([np.interp(t, pos, cs[:, k]) for k in range(3)], -1)
+
+
 # ---------------------------------------------------------------- eyes
 def paint_iris():
     s = Surface("iris", (-1 / 0.97, 1 / 0.97), (-1 / 0.97, 1 / 0.97))
     X, Y = s.X, s.Y
-    full = np.ones_like(X)
-    s.over("iris_mid", full)
-    s.over("iris_light", s.cover(np.hypot(X, Y + 0.02) - 0.86) * s.cover(0.84 - np.hypot(X * 0.98, Y - 0.20)))
-    s.over("iris_middark", s.cover((0.02 - 0.22 * X * X) - Y))
-    s.over("iris_dark", s.cover((0.20 - 0.22 * X * X) - Y))
-    s.over("pupil", s.cover((np.hypot(X / 0.29, (Y - 0.03) / 0.35) - 1.0) * 0.30))
-    s.over("iris_rim", s.cover(0.885 - np.hypot(X, Y)))
-    s.commit(0.35)
+    r = np.hypot(X, Y)
+    ang = np.arctan2(Y, X)
+    c = ramp((1 - Y) / 2, [(0.0, "iris_top"), (0.28, "iris_upper"), (0.52, "iris_mid"), (0.78, "iris_low"), (1.0, "iris_bottom")])
+    # fine radial fibres
+    rng = np.random.default_rng(7)
+    f = np.zeros_like(ang)
+    for k in (9, 17, 29, 43, 61, 83):
+        f += rng.uniform(0.5, 1.0) * np.sin(k * ang + rng.uniform(0, 2 * np.pi) + 0.8 * np.sin(3 * ang + k))
+    fib = np.tanh(f * 0.9) * S((r - 0.36) / 0.10) * (1 - S((r - 0.86) / 0.08))
+    c = c * (1 + 0.10 * fib)[..., None]
+    # soft glow crescent in the lower half, and a lighter collarette around the pupil
+    cres = S((0.90 - np.hypot(X * 1.04, Y + 0.30)) / 0.16) * S((np.hypot(X * 1.12, Y + 0.08) - 0.52) / 0.14) * S((-Y - 0.05) / 0.35)
+    c = lerp(c, col("iris_glow"), 0.55 * cres)
+    c = lerp(c, col("iris_low"), 0.22 * np.exp(-((r - 0.46) / 0.07) ** 2) * S((-Y + 0.6) / 0.8))
+    # upper-lid shadow over the top of the iris
+    c = lerp(c, col("iris_top"), 0.50 * S((Y - 0.18) / 0.62))
+    # pupil
+    pr = np.hypot(X / 0.27, (Y - 0.06) / 0.31)
+    c = lerp(c, col("pupil"), 1 - S((pr - 0.94) / 0.10))
+    # limbal ring and crisp outline
+    c = lerp(c, col("iris_ring"), 0.85 * S((r - 0.78) / 0.15))
+    c = lerp(c, col("iris_ring"), S((r - 0.925) / 0.025))
+    # small painted sparkles (the main highlights are geometry)
+    for sx, sy, sr, a in ((-0.46, -0.48, 0.055, 0.55), (0.52, -0.30, 0.030, 0.40)):
+        d = np.hypot(X - sx, Y - sy)
+        c = lerp(c, col("highlight"), a * (1 - S((d - sr * 0.3) / (sr * 0.9))))
+    s.C, s.A = c, np.ones_like(X)
+    s.commit(0.30)
 
 
 def paint_sclera():
     s = Surface("sclera", (-fd.SCLERA_UV[0], fd.SCLERA_UV[0]), (-fd.SCLERA_UV[1], fd.SCLERA_UV[1]))
     up = fd.bezier(fd.EYE_UPPER, 300)
+    lo = fd.bezier(fd.EYE_LOWER, 300)
     y_up = np.interp(s.X, up[:, 0], up[:, 1], left=up[0, 1], right=up[-1, 1])
-    s.over("sclera", np.ones_like(s.X))
-    s.over("sclera_shade", s.cover((y_up - 0.026) - s.Y))     # hard lid shadow under the upper lid
-    s.commit(0.4)
+    order = np.argsort(lo[:, 0])
+    y_lo = np.interp(s.X, lo[order, 0], lo[order, 1])
+    height = np.maximum(y_up - y_lo, 1e-3)
+    t = (y_up - s.Y) / height                         # 0 at the upper lid, 1 at the lower lid
+    c = np.broadcast_to(col("sclera"), s.X.shape + (3,)).copy()
+    c = lerp(c, col("sclera_shade"), 0.9 * (1 - S(t / 0.42)))        # soft shadow under the lid
+    c = lerp(c, col("sclera_corner"), 0.5 * S((np.abs(s.X - 0.008) - 0.075) / 0.07))
+    s.C, s.A = c, np.ones_like(s.X)
+    s.commit(0.35)
 
 
 def paint_swatches():
-    for name in ("lash", "brow", "crease", "highlight", "nose", "noseshade"):
-        put(name, hexc(PAL[name]), 1.0, 0.7 if name in ("lash", "brow") else 0.5)
-    put("skin", np.array(DEFAULT_SKIN) / 255.0, 0.0, 0.85)
+    for name, r in (("lash", 0.42), ("brow", 0.55), ("crease", 0.55), ("lidline", 0.45), ("lowerlash", 0.55), ("highlight", 0.2)):
+        put(name, col(name), 1.0, r)
+    put("skin", np.array(DEFAULT_SKIN) / 255.0, 0.0, SKIN_ROUGH)
     sl, FX, FY = region("wall")
     p = np.clip(FX, 0, 1)
-    a = fd.smoothstep(p / 0.035) * fd.smoothstep((0.5 - p) / 0.035) * (p <= 0.5)
-    put("wall", hexc(PAL["lash"]), a, 0.7)
+    a = S(p / 0.035) * S((0.5 - p) / 0.035) * (p <= 0.5)
+    put("wall", col("lash"), a, 0.5)
 
 
 def paint_blush():
     hx, hy = fd.BLUSH_SIZE[0] / 2, fd.BLUSH_SIZE[1] / 2
     s = Surface("blush", (-hx, hx), (-hy, hy))
     d = np.hypot(s.X / hx, s.Y / hy)
-    s.over("blush", 0.45 * (1 - fd.smoothstep((d - 0.3) / 0.7)))
+    s.over("blush", 0.45 * (1 - S((d - 0.3) / 0.7)))
     for cx in (-0.024, 0.0, 0.024):
         s.stroke([(cx - 0.006, -0.012), (cx + 0.006, 0.012)], 0.0042, "blush_line")
     s.commit(0.85)
 
 
 # ---------------------------------------------------------------- mouths (sprite x in [-1, 1], y in [-0.5, 0.5])
-def m_smile(s):
-    s.stroke(bez([(-0.42, 0.10), (-0.20, -0.07), (0.20, -0.07), (0.42, 0.10)], 90),
-             taper(90, [(0, 0.045), (0.5, 0.095), (1, 0.045)]), "line")
+LINE_W = 0.070
+
+
+def inner_fill(s, poly, y0, y1):
+    """Dark mouth interior with a slight vertical gradient; returns its coverage."""
+    cov = s.cover(s.poly_sd(poly))
+    t = np.clip((y1 - s.Y) / max(y1 - y0, 1e-6), 0, 1)
+    s.over(lerp(np.broadcast_to(col("inner_top"), s.X.shape + (3,)), col("inner_bottom"), t), cov)
+    return cov
+
+
+def tongue(s, c, r, clip):
+    cov = s.cover(s.poly_sd(ellipse(c, r))) * clip
+    t = np.clip((s.Y - (c[1] - r[1])) / (2 * r[1]), 0, 1)
+    s.over(lerp(np.broadcast_to(col("tongue"), s.X.shape + (3,)), col("tongue_light"), 0.6 * S((t - 0.45) / 0.55)), cov)
+
+
+def teeth_fill(s, poly, clip=None):
+    cov = s.cover(s.poly_sd(poly))
+    if clip is not None:
+        cov = cov * clip
+    s.over("teeth", cov)
+    return cov
 
 
 def m_neutral(s):
-    s.stroke(bez([(-0.34, 0.012), (-0.12, -0.022), (0.12, -0.022), (0.34, 0.012)]),
-             taper(80, [(0, 0.045), (0.5, 0.085), (1, 0.045)]), "line")
+    s.stroke(bez([(-0.25, 0.004), (-0.09, -0.008), (0.09, -0.008), (0.25, 0.004)]),
+             taper(80, [(0, 0.055), (0.5, 0.072), (1, 0.055)]), "line")
+
+
+def m_smile(s):
+    s.stroke(bez([(-0.38, 0.07), (-0.16, -0.045), (0.16, -0.045), (0.38, 0.07)]),
+             taper(80, [(0, 0.045), (0.5, 0.078), (1, 0.045)]), "line")
 
 
 def m_frown(s):
-    s.stroke(bez([(-0.34, -0.10), (-0.16, 0.075), (0.16, 0.075), (0.34, -0.10)]),
-             taper(80, [(0, 0.055), (0.5, 0.10), (1, 0.055)]), "line")
+    s.stroke(bez([(-0.33, -0.075), (-0.15, 0.065), (0.15, 0.065), (0.33, -0.075)]),
+             taper(80, [(0, 0.092), (0.5, 0.085), (1, 0.092)]), "line")
 
 
 def m_smirk(s):
-    s.stroke(bez([(-0.36, -0.02), (-0.08, -0.07), (0.20, -0.05), (0.42, 0.11)], 90),
-             taper(90, [(0, 0.040), (0.45, 0.085), (1, 0.095)]), "line")
-    s.stroke(bez([(0.37, 0.20), (0.45, 0.17), (0.48, 0.11), (0.46, 0.05)], 20),
-             taper(20, [(0, 0.012), (0.5, 0.032), (1, 0.012)]), "line")
+    s.stroke(bez([(-0.32, 0.0), (-0.08, -0.04), (0.18, -0.035), (0.38, 0.085)], 90),
+             taper(90, [(0, 0.045), (0.5, 0.075), (1, 0.080)]), "line")
+    s.stroke(bez([(0.36, 0.17), (0.42, 0.15), (0.45, 0.11), (0.45, 0.06)], 20), taper(20, [(0, 0.012), (0.5, 0.030), (1, 0.012)]), "line")
 
 
 def m_open_small(s):
-    top = bez([(-0.30, 0.10), (-0.10, 0.065), (0.10, 0.065), (0.30, 0.10)], 50)
-    poly = shape(top, bez([(0.30, 0.10), (0.25, -0.21), (-0.25, -0.21), (-0.30, 0.10)], 50))
-    inside = s.fill(poly, "inner")
-    s.fill(ellipse((0.02, -0.085), (0.13, 0.05)), "tongue", clip=inside)
-    s.outline(poly, 0.07, "line")
-    s.stroke(top, taper(50, [(0, 0.07), (0.5, 0.09), (1, 0.07)]), "line")
+    top = bez([(-0.23, 0.10), (-0.08, 0.075), (0.08, 0.075), (0.23, 0.10)], 50)
+    poly = shape(top, bez([(0.23, 0.10), (0.19, -0.18), (-0.19, -0.18), (-0.23, 0.10)], 50))
+    inside = inner_fill(s, poly, -0.18, 0.10)
+    tongue(s, (0.0, -0.115), (0.12, 0.055), inside)
+    s.stroke(np.concatenate([poly, poly[:1]]), LINE_W * 0.85, "line")
 
 
 def m_open(s):
-    top = bez([(-0.50, 0.15), (-0.22, 0.10), (0.22, 0.10), (0.50, 0.15)], 60)
-    poly = shape(top, bez([(0.50, 0.15), (0.40, -0.49), (-0.40, -0.49), (-0.50, 0.15)], 60))
-    inside = s.fill(poly, "inner")
-    s.fill(ellipse((0.0, -0.255), (0.27, 0.12)), "tongue", clip=inside)
-    s.outline(poly, 0.075, "line")
-    s.stroke(top, taper(60, [(0, 0.085), (0.5, 0.10), (1, 0.085)]), "line")
-    for k in (-1, 1):  # little upturned tips at the corners
-        tip = bez([(0.50 * k, 0.15), (0.555 * k, 0.165), (0.60 * k, 0.20), (0.625 * k, 0.25)], 14)
-        s.stroke(tip, taper(14, [(0, 0.08), (1, 0.018)]), "line")
+    top = bez([(-0.44, 0.16), (-0.18, 0.11), (0.18, 0.11), (0.44, 0.16)], 60)
+    poly = shape(top, bez([(0.44, 0.16), (0.36, -0.45), (-0.36, -0.45), (-0.44, 0.16)], 60))
+    inside = inner_fill(s, poly, -0.45, 0.16)
+    tongue(s, (0.0, -0.31), (0.23, 0.12), inside)
+    s.stroke(np.concatenate([poly, poly[:1]]), LINE_W, "line")
+    s.stroke(top, taper(60, [(0, 0.080), (0.5, 0.090), (1, 0.080)]), "line")
+    for k in (-1, 1):  # corners curl up
+        tip = bez([(0.44 * k, 0.16), (0.50 * k, 0.175), (0.545 * k, 0.21), (0.56 * k, 0.26)], 14)
+        s.stroke(tip, taper(14, [(0, 0.075), (1, 0.018)]), "line")
 
 
 def m_laugh(s):
-    top = bez([(-0.66, 0.22), (-0.30, 0.15), (0.30, 0.15), (0.66, 0.22)], 70)
-    poly = shape(top, bez([(0.66, 0.22), (0.56, -0.61), (-0.56, -0.61), (-0.66, 0.22)], 70))
-    inside = s.fill(poly, "inner")
-    s.fill(np.concatenate([top, (top - np.array([0.0, 0.09]))[::-1]]), "teeth", clip=inside)
-    s.fill(ellipse((0.0, -0.335), (0.33, 0.12)), "tongue", clip=inside)
-    s.outline(poly, 0.08, "line")
-    s.stroke(top, taper(70, [(0, 0.09), (0.5, 0.105), (1, 0.09)]), "line")
+    top = bez([(-0.62, 0.20), (-0.28, 0.13), (0.28, 0.13), (0.62, 0.20)], 70)
+    poly = shape(top, bez([(0.62, 0.20), (0.52, -0.60), (-0.52, -0.60), (-0.62, 0.20)], 70))
+    inside = inner_fill(s, poly, -0.60, 0.20)
+    teeth_fill(s, np.concatenate([top, (top - np.array([0.0, 0.10]))[::-1]]), inside)
+    s.stroke(top - np.array([0.0, 0.10]), 0.018, "teeth_shade", clip=inside)
+    tongue(s, (0.0, -0.40), (0.33, 0.14), inside)
+    s.stroke(np.concatenate([poly, poly[:1]]), LINE_W * 1.05, "line")
+    s.stroke(top, taper(70, [(0, 0.085), (0.5, 0.10), (1, 0.085)]), "line")
 
 
 def m_grin(s):
-    top = bez([(-0.60, 0.20), (-0.30, 0.05), (0.30, 0.05), (0.60, 0.20)], 60)
-    bot = bez([(0.60, 0.20), (0.44, -0.36), (-0.44, -0.36), (-0.60, 0.20)], 60)
+    top = bez([(-0.58, 0.18), (-0.28, 0.06), (0.28, 0.06), (0.58, 0.18)], 70)
+    bot = bez([(0.58, 0.18), (0.40, -0.33), (-0.40, -0.33), (-0.58, 0.18)], 70)
     poly = shape(top, bot)
-    inside = s.fill(poly, "teeth")
-    s.fill(np.concatenate([bot, (bot + np.array([0.0, 0.075]))[::-1]]), "inner", clip=inside)
-    s.outline(poly, 0.085, "line")
+    inside = teeth_fill(s, poly)
+    # soft shade along the lower teeth edge and a faint gap line
+    s.stroke(bot[8:-8] + np.array([0.0, 0.045]), 0.05, "teeth_shade", clip=inside)
+    s.stroke(bez([(-0.40, 0.03), (-0.15, -0.035), (0.15, -0.035), (0.40, 0.03)]), 0.012, "teeth_line", clip=inside)
+    s.stroke(top, taper(70, [(0, 0.050), (0.5, 0.055), (1, 0.050)]), "line")
+    s.stroke(bot, taper(70, [(0, 0.050), (0.5, 0.115), (1, 0.050)]), "line")
 
 
 def m_teeth(s):
-    poly = rounded_rect(-0.44, -0.12, 0.44, 0.12, 0.08)
-    inside = s.fill(poly, "teeth")
-    for x in (-0.22, 0.0, 0.22):
-        s.stroke([(x, -0.13), (x, 0.13)], 0.012, "teeth_line", clip=inside)
-    s.stroke([(-0.46, 0.0), (0.46, 0.0)], 0.022, "teeth_gap", clip=inside)
-    s.outline(poly, 0.075, "line")
+    poly = rounded_rect(-0.38, -0.11, 0.38, 0.11, 0.07)
+    inside = teeth_fill(s, poly)
+    for x in (-0.19, 0.0, 0.19):
+        s.stroke([(x, -0.12), (x, 0.12)], 0.012, "teeth_line", clip=inside)
+    s.stroke([(-0.40, 0.0), (0.40, 0.0)], 0.020, "teeth_line", clip=inside)
+    s.stroke(np.concatenate([poly, poly[:1]]), LINE_W * 0.95, "line")
 
 
 def m_o(s):
-    poly = ellipse((0.0, -0.05), (0.19, 0.235))
-    inside = s.fill(poly, "inner")
-    s.fill(ellipse((0.0, -0.215), (0.12, 0.065)), "tongue", clip=inside)
-    s.outline(poly, 0.08, "line")
+    poly = ellipse((0.0, -0.05), (0.15, 0.20))
+    inside = inner_fill(s, poly, -0.25, 0.15)
+    tongue(s, (0.0, -0.20), (0.10, 0.06), inside)
+    s.stroke(np.concatenate([poly, poly[:1]]), LINE_W, "line")
 
 
 def m_pout(s):
-    poly = ellipse((0.0, -0.02), (0.095, 0.08))
-    s.fill(poly, "inner")
-    s.outline(poly, 0.065, "line")
+    # a "3"-shaped kissy pout
+    path = bez([(-0.05, 0.19), (0.13, 0.22), (0.15, 0.05), (-0.01, 0.015)], 40)
+    path2 = bez([(-0.01, 0.015), (0.16, -0.01), (0.15, -0.21), (-0.06, -0.20)], 40)
+    p = np.concatenate([path, path2[1:]])
+    s.stroke(p, taper(len(p), [(0, 0.030), (0.2, 0.060), (0.5, 0.050), (0.8, 0.060), (1, 0.030)]), "line")
+
+
+def m_cat(s):
+    left = bez([(-0.30, 0.07), (-0.26, -0.07), (-0.05, -0.08), (0.0, 0.03)], 40)
+    right = bez([(0.0, 0.03), (0.05, -0.08), (0.26, -0.07), (0.30, 0.07)], 40)
+    p = np.concatenate([left, right[1:]])
+    s.stroke(p, taper(len(p), [(0, 0.040), (0.25, 0.065), (0.5, 0.050), (0.75, 0.065), (1, 0.040)]), "line")
 
 
 def m_wavy(s):
-    x = np.linspace(-0.38, 0.38, 140)
-    s.stroke(np.stack([x, 0.032 * np.sin((x + 0.38) / 0.76 * 2.5 * 2 * np.pi)], -1), 0.06, "line")
+    x = np.linspace(-0.36, 0.36, 140)
+    s.stroke(np.stack([x, 0.030 * np.sin((x + 0.36) / 0.72 * 2.5 * 2 * np.pi)], -1),
+             taper(140, [(0, 0.045), (0.5, 0.060), (1, 0.045)]), "line")
 
 
 MOUTH_PAINTERS = {
-    "Smile": m_smile, "Neutral": m_neutral, "Frown": m_frown, "Smirk": m_smirk, "OpenSmall": m_open_small,
-    "Open": m_open, "Laugh": m_laugh, "Grin": m_grin, "Teeth": m_teeth, "O": m_o, "Pout": m_pout, "Wavy": m_wavy,
+    "Neutral": m_neutral, "Smile": m_smile, "Frown": m_frown, "Smirk": m_smirk, "OpenSmall": m_open_small,
+    "Open": m_open, "Laugh": m_laugh, "Grin": m_grin, "Teeth": m_teeth, "O": m_o, "Pout": m_pout, "Cat": m_cat,
+    "Wavy": m_wavy,
 }
 assert set(MOUTH_PAINTERS) == set(fd.MOUTHS)
 
@@ -340,6 +417,8 @@ def to_u8(a):
 
 def save_mouth_files(rgba):
     os.makedirs(os.path.join(OUT, "mouths"), exist_ok=True)
+    for old in os.listdir(os.path.join(OUT, "mouths")):
+        os.remove(os.path.join(OUT, "mouths", old))
     skin = np.array(DEFAULT_SKIN) / 255.0
     tiles = []
     font = ImageFont.load_default(size=18)
@@ -350,9 +429,11 @@ def save_mouth_files(rgba):
         tile = Image.fromarray(to_u8(cell[..., :3] * cell[..., 3:] + skin * (1 - cell[..., 3:])), "RGB")
         ImageDraw.Draw(tile).text((8, 6), name, fill=(90, 60, 60), font=font)
         tiles.append(tile)
-    sheet = Image.new("RGB", (4 * 256, 3 * 128))
+    cols = 5
+    rows = (len(tiles) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * 256, rows * 128), DEFAULT_SKIN)
     for i, t in enumerate(tiles):
-        sheet.paste(t, ((i % 4) * 256, (i // 4) * 128))
+        sheet.paste(t, ((i % cols) * 256, (i // cols) * 128))
     os.makedirs(DOCS, exist_ok=True)
     sheet.save(os.path.join(DOCS, "mouths.png"))
 
@@ -368,12 +449,12 @@ def main():
     pm = downsample(np.concatenate([rgb * a, a], -1))
     plain = downsample(rgb)
     alpha = pm[..., 3:4]
-    col = np.where(alpha > 1e-4, pm[..., :3] / np.maximum(alpha, 1e-4), plain)
-    rgba = np.concatenate([col, alpha], -1)
+    colr = np.where(alpha > 1e-4, pm[..., :3] / np.maximum(alpha, 1e-4), plain)
+    rgba = np.concatenate([colr, alpha], -1)
     os.makedirs(OUT, exist_ok=True)
     Image.fromarray(to_u8(rgba), "RGBA").save(os.path.join(OUT, "AnimeFace_Color.png"))
     skin = np.array(DEFAULT_SKIN) / 255.0
-    Image.fromarray(to_u8(col * alpha + skin * (1 - alpha)), "RGB").save(os.path.join(OUT, "AnimeFace_Color_Opaque.png"))
+    Image.fromarray(to_u8(colr * alpha + skin * (1 - alpha)), "RGB").save(os.path.join(OUT, "AnimeFace_Color_Opaque.png"))
     Image.fromarray(to_u8(downsample(rough[..., None])[..., 0]), "L").save(os.path.join(OUT, "AnimeFace_Roughness.png"))
     save_mouth_files(rgba)
     print("wrote", os.path.abspath(OUT))
