@@ -171,8 +171,8 @@ VIEWS = {
     "face_close": ((0.0, -6.0, -0.17), (0.0, 0.0, -0.17), 0.80),
     "face_mid": ((0.0, -6.0, -0.17), (0.0, 0.0, -0.17), 0.80),
     # the character's right eye (head +X = Blender -X), straight on and from a three-quarter angle
-    "eye_front": ((-0.257, -6.0, -0.085), (-0.257, 0.0, -0.085), 0.56),
-    "eye_34": ((-1.10, -1.20, 0.30), (-0.30, -0.53, -0.09), None),
+    "eye_front": ((-0.315, -6.0, -0.180), (-0.315, 0.0, -0.180), 0.56),
+    "eye_34": ((-1.15, -1.15, 0.22), (-0.34, -0.50, -0.19), None),
 }
 
 # Short demo clip at 12 fps: (expression, mouth override or None, frames). Talking flips 2D mouths.
@@ -214,9 +214,9 @@ def main():
         bb.pose_offsets(arm, offsets, bones)
         bpy.context.view_layer.update()
 
-    if mode in ("look", "quick"):
+    if mode in ("look", "quick", "eyes"):
         pose(names[0] if names else "Neutral")
-        views = ("front", "three_quarter", "side", "face_close", "eye_front", "eye_34") if mode == "look" else ("face_close", "eye_front", "eye_34")
+        views = {"look": ("front", "three_quarter", "side", "face_close", "eye_front", "eye_34"), "eyes": ("eye_front", "eye_34")}.get(mode, ("face_close", "eye_front", "eye_34"))
         for view in views:
             render(scene, cam, view, os.path.join(out, f"look_{view}.png"))
     elif mode == "sheet":
